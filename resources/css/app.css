@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
+@source '../js/**/*.js';
+@source '../js/**/*.vue';
+
+@theme static {
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Zinc (Neutral) - OKLCH format */
+  --color-zinc-50: oklch(98% 0 0);
+  --color-zinc-100: oklch(96% 0 0);
+  --color-zinc-200: oklch(92% 0 0);
+  --color-zinc-300: oklch(84% 0 0);
+  --color-zinc-400: oklch(68% 0 0);
+  --color-zinc-500: oklch(52% 0 0);
+  --color-zinc-600: oklch(42% 0 0);
+  --color-zinc-700: oklch(35% 0 0);
+  --color-zinc-800: oklch(27% 0 0);
+  --color-zinc-900: oklch(20% 0 0);
+  --color-zinc-950: oklch(13% 0 0);
+
+  /* Green (Primary) - OKLCH format */
+  --color-green-50: oklch(97% 0.05 155);
+  --color-green-100: oklch(95% 0.08 155);
+  --color-green-200: oklch(90% 0.12 155);
+  --color-green-300: oklch(85% 0.16 155);
+  --color-green-400: oklch(78% 0.20 155);
+  --color-green-500: oklch(68% 0.18 155);
+  --color-green-600: oklch(58% 0.16 155);
+  --color-green-700: oklch(48% 0.13 155);
+  --color-green-800: oklch(40% 0.10 155);
+  --color-green-900: oklch(35% 0.08 155);
+  --color-green-950: oklch(22% 0.05 155);
+
+  /* Blue - OKLCH format */
+  --color-blue-50: oklch(97% 0.01 240);
+  --color-blue-100: oklch(94% 0.03 240);
+  --color-blue-200: oklch(88% 0.06 240);
+  --color-blue-300: oklch(78% 0.11 240);
+  --color-blue-400: oklch(68% 0.16 245);
+  --color-blue-500: oklch(58% 0.20 250);
+  --color-blue-600: oklch(50% 0.21 255);
+  --color-blue-700: oklch(45% 0.20 260);
+  --color-blue-800: oklch(40% 0.17 260);
+  --color-blue-900: oklch(35% 0.14 265);
+  --color-blue-950: oklch(23% 0.09 265);
+
+  /* Emerald - OKLCH format */
+  --color-emerald-50: oklch(96% 0.03 160);
+  --color-emerald-100: oklch(93% 0.07 160);
+  --color-emerald-200: oklch(87% 0.12 160);
+  --color-emerald-300: oklch(80% 0.15 162);
+  --color-emerald-400: oklch(72% 0.17 165);
+  --color-emerald-500: oklch(64% 0.16 165);
+  --color-emerald-600: oklch(54% 0.14 165);
+  --color-emerald-700: oklch(46% 0.12 165);
+  --color-emerald-800: oklch(39% 0.10 165);
+  --color-emerald-900: oklch(34% 0.08 165);
+  --color-emerald-950: oklch(22% 0.05 165);
+
+  /* Purple - OKLCH format */
+  --color-purple-50: oklch(97% 0.01 300);
+  --color-purple-100: oklch(95% 0.03 300);
+  --color-purple-200: oklch(90% 0.06 300);
+  --color-purple-300: oklch(83% 0.11 300);
+  --color-purple-400: oklch(72% 0.17 295);
+  --color-purple-500: oklch(60% 0.22 290);
+  --color-purple-600: oklch(52% 0.24 285);
+  --color-purple-700: oklch(45% 0.22 285);
+  --color-purple-800: oklch(38% 0.18 285);
+  --color-purple-900: oklch(32% 0.14 285);
+  --color-purple-950: oklch(21% 0.09 285);
+
+  /* Red - OKLCH format */
+  --color-red-50: oklch(97% 0.02 20);
+  --color-red-100: oklch(95% 0.04 20);
+  --color-red-200: oklch(90% 0.08 20);
+  --color-red-300: oklch(85% 0.12 20);
+  --color-red-400: oklch(70% 0.18 20);
+  --color-red-500: oklch(63% 0.22 25);
+  --color-red-600: oklch(55% 0.22 25);
+  --color-red-700: oklch(47% 0.20 25);
+  --color-red-800: oklch(42% 0.17 25);
+  --color-red-900: oklch(38% 0.14 25);
+  --color-red-950: oklch(22% 0.09 25);
+
+  /* Orange - OKLCH format */
+  --color-orange-50: oklch(97% 0.02 60);
+  --color-orange-100: oklch(95% 0.04 60);
+  --color-orange-200: oklch(90% 0.08 60);
+  --color-orange-300: oklch(82% 0.12 60);
+  --color-orange-400: oklch(74% 0.16 55);
+  --color-orange-500: oklch(68% 0.19 50);
+  --color-orange-600: oklch(60% 0.21 45);
+  --color-orange-700: oklch(52% 0.19 45);
+  --color-orange-800: oklch(45% 0.15 45);
+  --color-orange-900: oklch(40% 0.12 45);
+  --color-orange-950: oklch(25% 0.08 45);
+}
+
+/* Primary color for Light mode */
+:root {
+  --ui-primary: var(--color-green-500);
+  --ui-secondary: var(--color-blue-500);
+}
+
+/* Primary color for Dark mode */
+.dark {
+  --ui-primary: var(--color-green-400);
+  --ui-secondary: var(--color-blue-400);
+}
+
+@import '@nuxt/ui';
+
+/* Ensure full height for the app */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
