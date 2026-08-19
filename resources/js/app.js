@@ -4,7 +4,6 @@ import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from 'ziggy-js';
-import { Ziggy } from './ziggy';
 import { createRouter, createWebHistory } from 'vue-router';
 import Toast from 'vue-toastification';
 import 'vue-toastification/dist/index.css';
@@ -58,7 +57,7 @@ createInertiaApp({
             .use(router)
             .use(Toast)
             .use(NuxtUIPlugin)
-            .use(ZiggyVue, Ziggy)
+            .use(ZiggyVue)
             .mount(el);
     },
     progress: {

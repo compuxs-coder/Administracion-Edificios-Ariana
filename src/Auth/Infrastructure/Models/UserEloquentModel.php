@@ -3,13 +3,14 @@
 namespace Src\Auth\Infrastructure\Models;
 
 use App\Traits\HasUuid;
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Src\Cliente\Infrastructure\Models\ClienteEloquentModel;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[UseFactory(UserFactory::class)]
 class UserEloquentModel extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -49,11 +50,6 @@ class UserEloquentModel extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
-    }
-
-    public function clientes(): HasMany
-    {
-        return $this->hasMany(ClienteEloquentModel::class);
     }
 
 }

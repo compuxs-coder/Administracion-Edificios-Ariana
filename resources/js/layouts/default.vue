@@ -11,8 +11,6 @@ const open = ref(false)
 const appConfig = useAppConfig()
 
 onMounted(() => {
-  console.log('Layout mounted with colors:', appConfig.value.ui.colors)
-  // Initialize flash messages
   useFlash()
 })
 
@@ -22,7 +20,7 @@ const navigateTo = (url: string) => {
 }
 
 const links = [[{
-  label: 'Home',
+  label: 'Inicio',
   icon: 'i-lucide-house',
   to: '/dashboard',
   onSelect: () => navigateTo('/dashboard')
@@ -31,16 +29,11 @@ const links = [[{
   icon: 'i-lucide-users-round',
   to: '/clientes',
   onSelect: () => navigateTo('/clientes')
-}, {
-  label: 'Facturas',
-  icon: 'i-lucide-file-text',
-  to: '/facturas',
-  onSelect: () => navigateTo('/facturas')
 }]] satisfies NavigationMenuItem[][]
 
 const groups = computed(() => [{
   id: 'links',
-  label: 'Go to',
+  label: 'Ir a',
   items: links.flat()
 }])
 </script>

@@ -14,6 +14,7 @@ use Src\Auth\Infrastructure\Requests\LoginRequest;
 use Src\Auth\Infrastructure\Requests\RegisterRequest;
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Exception;
+use Throwable;
 
 class WebAuthController extends Controller
 {
@@ -39,19 +40,15 @@ class WebAuthController extends Controller
     }
 
     /**
-     * Procesar login
-     *
-     * Este método usa tu sistema de autenticación basado en tokens
-     * pero lo adapta para funcionar con sesiones web
+     * Procesar login mediante sesión web.
      */
     public function login(LoginRequest $request): RedirectResponse
     {
         try {
-            // Usar tu caso de uso existente para validar credenciales
             $result = $this->loginAction->execute([
                 'email' => $request->input('email'),
                 'password' => $request->input('password')
-            ]);
+            ], false, $request->boolean('remember'));
 
             if (!$result) {
                 return back()->withErrors([
@@ -59,21 +56,19 @@ class WebAuthController extends Controller
                 ])->onlyInput('email');
             }
 
-            // Obtener el modelo Eloquent del usuario
-            $eloquentUser = UserEloquentModel::find($result['user']->getId());
-
-            // En lugar de devolver el token, iniciamos sesión web
-            Auth::login($eloquentUser);
-
-            // Regenerar sesión por seguridad
             $request->session()->regenerate();
 
             return redirect()->intended(route('dashboard'))
                 ->with('success', '¡Bienvenido de vuelta!');
 
-        } catch (Exception $e) {
+        } catch (Throwable $exception) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            report($exception);
+
             return back()->withErrors([
-                'email' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
+                'email' => 'No fue posible iniciar sesión. Inténtalo nuevamente.',
             ])->onlyInput('email');
         }
     }
@@ -84,12 +79,11 @@ class WebAuthController extends Controller
     public function register(RegisterRequest $request): RedirectResponse
     {
         try {
-            // Usar tu caso de uso existente
             $result = $this->registerAction->execute([
                 'name' => $request->input('name'),
                 'email' => $request->input('email'),
                 'password' => $request->input('password'),
-            ]);
+            ], false);
 
             // Obtener el modelo Eloquent del usuario
             $eloquentUser = UserEloquentModel::find($result['user']->getId());

@@ -13,7 +13,7 @@ class RegisterAction
         private UserRepositoryInterface $repository
     ) {}
 
-    public function execute(array $data): array
+    public function execute(array $data, bool $issueToken = true): array
     {
         $user = new User(
             name: $data['name'],
@@ -23,12 +23,15 @@ class RegisterAction
 
         $savedUser = $this->repository->save($user);
 
-        $eloquentUser = UserEloquentModel::find($savedUser->getId());
-        $token = $eloquentUser->createToken('auth_token')->plainTextToken;
-
-        return [
+        $result = [
             'user' => $savedUser,
-            'token' => $token
         ];
+
+        if ($issueToken) {
+            $eloquentUser = UserEloquentModel::findOrFail($savedUser->getId());
+            $result['token'] = $eloquentUser->createToken('auth_token')->plainTextToken;
+        }
+
+        return $result;
     }
 }

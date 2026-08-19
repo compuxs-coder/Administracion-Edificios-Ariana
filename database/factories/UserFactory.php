@@ -5,12 +5,16 @@ namespace Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Src\Auth\Infrastructure\Models\UserEloquentModel;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends Factory<UserEloquentModel>
  */
 class UserFactory extends Factory
 {
+    /** @var class-string<UserEloquentModel> */
+    protected $model = UserEloquentModel::class;
+
     /**
      * The current password being used by the factory.
      */

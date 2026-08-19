@@ -124,12 +124,12 @@ const handleSubmit = () => {
           <div class="text-center text-sm">
             <span class="text-muted">¿Ya tienes una cuenta?</span>
             <UButton
-              :to="route('login')"
               variant="link"
               color="primary"
               label="Inicia sesión"
               :padded="false"
               class="ml-1"
+              @click="router.visit(route('login'))"
             />
           </div>
         </template>

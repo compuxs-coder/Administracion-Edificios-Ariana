@@ -1,7 +1,12 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "administracion-edificios-ariana",
     "private": true,
     "type": "module",
+    "packageManager": "npm@11.12.1",
+    "engines": {
+        "node": ">=22.19.0"
+    },
     "scripts": {
         "build": "vite build",
         "dev": "vite"

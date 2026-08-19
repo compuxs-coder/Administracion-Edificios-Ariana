@@ -11,6 +11,8 @@ use Src\Auth\Infrastructure\Requests\RegisterRequest;
 use Src\Auth\Infrastructure\Requests\LoginRequest;
 use Src\Auth\Infrastructure\Resources\UserResource;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -38,7 +40,17 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request)
     {
-        $result = $this->loginAction->execute($request->validated());
+        try {
+            $result = $this->loginAction->execute($request->validated());
+        } catch (Throwable $exception) {
+            Auth::guard('web')->logout();
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No fue posible iniciar sesión. Inténtalo nuevamente.'
+            ], 500);
+        }
 
         if (!$result) {
             return response()->json([
