@@ -2,6 +2,13 @@
 
 use Illuminate\Support\Str;
 
+$defaultConnection = env('DB_CONNECTION', 'sqlite');
+$applicationSchema = env('DB_SCHEMA', 'administracion_edificios');
+
+if (preg_match('/\A[a-z_][a-z0-9_]*\z/', $applicationSchema) !== 1) {
+    throw new InvalidArgumentException('DB_SCHEMA must be a lowercase PostgreSQL identifier.');
+}
+
 return [
 
     /*
@@ -16,7 +23,9 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => $defaultConnection,
+
+    'application_schema' => $applicationSchema,
 
     /*
     |--------------------------------------------------------------------------
@@ -94,7 +103,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => [$applicationSchema, 'public'],
             'sslmode' => 'prefer',
         ],
 
@@ -127,7 +136,7 @@ return [
     */
 
     'migrations' => [
-        'table' => 'migrations',
+        'table' => $defaultConnection === 'pgsql' ? 'public.migrations' : 'migrations',
         'update_date_on_publish' => true,
     ],
 

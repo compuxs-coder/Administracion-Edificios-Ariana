@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { router } from '@inertiajs/vue3'
 import type { NavigationMenuItem } from '@nuxt/ui'
-import TeamsMenu from '../components/TeamsMenu.vue'
 import UserMenu from '../components/UserMenu.vue'
 import { useAppConfig } from '../composables/useAppConfig'
 import { useFlash } from '../composables/useFlash'
@@ -24,6 +23,11 @@ const links = [[{
   icon: 'i-lucide-house',
   to: '/dashboard',
   onSelect: () => navigateTo('/dashboard')
+}, {
+  label: 'Edificios',
+  icon: 'i-lucide-building-2',
+  to: '/edificios',
+  onSelect: () => navigateTo('/edificios')
 }, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
@@ -50,7 +54,10 @@ const groups = computed(() => [{
         :ui="{ footer: 'lg:border-t lg:border-default' }"
       >
         <template #header="{ collapsed }">
-          <TeamsMenu :collapsed="collapsed" />
+          <div class="flex min-h-10 items-center gap-2 px-2 text-highlighted">
+            <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
+            <span v-if="!collapsed" class="truncate font-semibold">Administración Ariana</span>
+          </div>
         </template>
 
         <template #default="{ collapsed }">

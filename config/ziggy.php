@@ -19,15 +19,12 @@ return [
 
     'groups' => [
         'web' => [
+            'edificios.*',
             'clientes.*',
             'login',
             'register',
             'logout',
             'dashboard',
-            'customers',
-            'inbox',
-            'settings',
-            'settings.*',
         ],
     ],
 ];

@@ -3,20 +3,35 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Src\Auth\Domain\Contracts\UserRepositoryInterface;
 use Src\Auth\Infrastructure\Repositories\EloquentUserRepository;
+use Src\Edificio\Application\Policies\EdificioPolicy;
+use Src\Edificio\Domain\Contracts\EdificioRepositoryInterface;
+use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Infrastructure\Repositories\EloquentEdificioRepository;
 use Src\Factura\Domain\Contracts\FacturaRepositoryInterface;
 use Src\Factura\Infrastructure\Repositories\EloquentFacturaRepository;
 
 class BoundedContextServiceProvider extends ServiceProvider
 {
+    private const BOUNDED_CONTEXTS = [
+        'Auth',
+        'Edificio',
+        'Cliente',
+        'Categoria',
+        'Producto',
+        'Factura',
+    ];
+
     /**
      * Register services.
      */
     public function register(): void
     {
         $this->app->bind(UserRepositoryInterface::class, EloquentUserRepository::class);
+        $this->app->bind(EdificioRepositoryInterface::class, EloquentEdificioRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 
@@ -25,6 +40,8 @@ class BoundedContextServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(EdificioEloquentModel::class, EdificioPolicy::class);
+
         $this->loadBoundedContextRoutes();
         $this->loadBoundedContextMigrations();
     }
@@ -34,15 +51,7 @@ class BoundedContextServiceProvider extends ServiceProvider
      */
     protected function loadBoundedContextRoutes(): void
     {
-        $boundedContexts = [
-            'Auth',
-            'Cliente',
-            'Categoria',
-            'Producto',
-            'Factura',
-        ];
-
-        foreach ($boundedContexts as $context) {
+        foreach (self::BOUNDED_CONTEXTS as $context) {
             // Cargar rutas de API
             $apiRoutesPath = base_path("src/{$context}/api.php");
             if (file_exists($apiRoutesPath)) {
@@ -65,15 +74,7 @@ class BoundedContextServiceProvider extends ServiceProvider
      */
     protected function loadBoundedContextMigrations(): void
     {
-        $boundedContexts = [
-            'Auth',
-            'Cliente',
-            'Categoria',
-            'Producto',
-            'Factura',
-        ];
-
-        foreach ($boundedContexts as $context) {
+        foreach (self::BOUNDED_CONTEXTS as $context) {
             $migrationsPath = base_path("src/{$context}/Infrastructure/Migrations");
 
             if (is_dir($migrationsPath)) {

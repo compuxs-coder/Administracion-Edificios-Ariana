@@ -1,106 +1,89 @@
-# API REST MVC y DDD - Facturas
+# Administración de Edificios Ariana
 
-API CRUD construida con Laravel 12, MVC, DDD y autenticación mediante Laravel Sanctum.
+Sistema multiedificio en desarrollo. Una instalación puede administrar uno o varios edificios con aislamiento de datos y acceso explícito por usuario.
+
+## Estado actual
+
+- Autenticación web mediante sesiones Laravel.
+- Autenticación API mediante Laravel Sanctum.
+- CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
+- Aislamiento de Edificios mediante policies y asignaciones usuario-edificio.
+- Dashboard sin métricas simuladas.
+- CRUD web y API de Cliente, conservado temporalmente mientras se define el modelo de propietarios, residentes y proveedores.
+- APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
+- Tablas nuevas de Edificios dentro del esquema PostgreSQL privado.
+
+La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
+
+## Tecnologías
+
+- PHP 8.2 o superior y Laravel 12.
+- PostgreSQL.
+- Vue 3, Inertia.js, Nuxt UI y Tailwind CSS.
+- Vite y npm.
+- Laravel Sanctum.
+- PHPUnit.
 
 ## Requisitos
 
-- PHP 8.2 o superior
-- Composer
-- SQLite, MySQL o PostgreSQL
+- PHP 8.2 o superior con las extensiones requeridas por Laravel, PostgreSQL y SQLite para pruebas.
+- Composer.
+- PostgreSQL.
+- Node.js 22.19 o superior.
+- npm 11.
 
 ## Instalación
 
 ```bash
 composer install
+npm ci
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
-php artisan serve
+npm run build
 ```
 
-La URL base de la API es `http://localhost:8000/api/v1`.
+Configure las credenciales únicamente en `.env`. Este archivo está ignorado por Git y no debe versionarse.
 
-## Pruebas
+Para desarrollo local:
 
 ```bash
+composer run dev
+```
+
+## PostgreSQL
+
+`DB_SCHEMA` define el esquema privado para los módulos nuevos y utiliza `administracion_edificios` como valor predeterminado. Durante la transición, el `search_path` es:
+
+```text
+administracion_edificios,public
+```
+
+Las tablas heredadas continúan temporalmente en `public`. La tabla `public.migrations` permanece calificada explícitamente para evitar que Laravel repita las migraciones históricas cuando el esquema privado pasa a ser el esquema actual.
+
+Después de aplicar la migración del esquema, `DB_SCHEMA` se considera una decisión persistente. Cambiarlo requiere una migración nueva y una transición controlada; no basta con editar la variable. Los comandos de migración deben ejecutarse con la conexión PostgreSQL como conexión predeterminada, no alternándola mediante `--database`.
+
+No use `migrate:fresh`, `migrate:reset`, `migrate:refresh` ni rollback que atraviese la migración del esquema sobre una base con datos que deban conservarse.
+
+## Verificación
+
+```bash
+composer validate
+php artisan about
+php artisan route:list
+php artisan migrate:status
 php artisan test
+npm run build
 ```
 
-## Arquitectura
+Las pruebas utilizan SQLite en memoria y requieren `pdo_sqlite` en PHP CLI.
 
-El contexto `src/Factura` se divide en:
+## Desarrollo de módulos
 
-- `Domain`: entidad `Factura`, contrato del repositorio y excepción de dominio.
-- `Application`: casos de uso para crear, actualizar, consultar, eliminar y listar; controlador MVC.
-- `Infrastructure`: modelo Eloquent, mapper, repositorio, validaciones, recurso JSON y migración.
+No cree contextos vacíos para cada concepto del negocio. Un contexto se registra cuando tiene un primer caso de uso ejecutable, reglas de autorización, persistencia definida y pruebas.
 
-El flujo es `Route -> Controller -> Action -> RepositoryInterface -> EloquentRepository -> Database`. El dominio no depende de Laravel ni de Eloquent.
-
-## Entidad Factura
-
-| Campo | Tipo | Reglas |
-|---|---|---|
-| `id` | UUID | Generado por el servidor |
-| `name` | string | Obligatorio |
-| `ruc` | string | Obligatorio y único |
-| `email` | string | Obligatorio y formato email |
-| `phone` | string | Obligatorio |
-| `address` | string | Obligatorio |
-| `city` | string | Obligatorio |
-| `country` | string | Obligatorio |
-| `status` | string | Obligatorio |
-| `created_at` | timestamp | Generado por el servidor |
-
-## Endpoints
-
-Todos los endpoints requieren el encabezado `Authorization: Bearer {token}`.
-
-| Método | Endpoint | Operación |
-|---|---|---|
-| `GET` | `/api/v1/facturas` | Listar |
-| `POST` | `/api/v1/facturas` | Crear |
-| `GET` | `/api/v1/facturas/{id}` | Consultar |
-| `PUT/PATCH` | `/api/v1/facturas/{id}` | Actualizar |
-| `DELETE` | `/api/v1/facturas/{id}` | Eliminar |
-
-Los endpoints de autenticación disponibles son `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me` y `POST /api/v1/auth/logout`.
-
-## Ejemplo
+El comando `make:ddd` crea la estructura base y sólo genera archivos de rutas cuando se solicita explícitamente:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/facturas \
-  -H "Accept: application/json" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer TOKEN" \
-  -d '{
-    "name": "Acme Ecuador",
-    "ruc": "1790012345001",
-    "email": "billing@acme.test",
-    "phone": "+593 2 555 0100",
-    "address": "Av. Naciones Unidas 123",
-    "city": "Quito",
-    "country": "Ecuador",
-    "status": "active"
-  }'
+php artisan make:ddd Edificio --api --web
 ```
-
-Respuesta `201 Created`:
-
-```json
-{
-  "data": {
-    "id": "7b9de03b-c58d-45d0-9ee8-e47b28db14a5",
-    "name": "Acme Ecuador",
-    "ruc": "1790012345001",
-    "email": "billing@acme.test",
-    "phone": "+593 2 555 0100",
-    "address": "Av. Naciones Unidas 123",
-    "city": "Quito",
-    "country": "Ecuador",
-    "status": "active",
-    "created_at": "2026-08-04 12:00:00"
-  }
-}
-```
-
-La documentación ampliada está en [`DOCUMENTATION.md`](DOCUMENTATION.md).

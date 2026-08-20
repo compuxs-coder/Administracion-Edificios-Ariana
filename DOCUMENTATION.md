@@ -1,180 +1,129 @@
-# Documentación de la API de Facturas
+# Documentación técnica
 
-## Diseño MVC y DDD
+## Alcance actual
 
-La API organiza `Factura` como un bounded context independiente en `src/Factura`:
+El proyecto proporciona la base de Laravel, autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios es el primer módulo funcional. Unidades, propietarios, residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
+
+La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
+
+Los contextos Cliente, Categoria, Producto y Factura proceden de la aplicación anterior. Se mantienen sólo cuando aún tienen rutas, pruebas o dependencias activas y no representan el modelo definitivo del sistema.
+
+## Organización
 
 ```text
-src/Factura/
-├── Domain/
-│   ├── Contracts/FacturaRepositoryInterface.php
-│   ├── Entities/Factura.php
-│   └── Exceptions/FacturaNotFoundException.php
-├── Application/
-│   ├── Actions/
-│   │   ├── CreateFacturaAction.php
-│   │   ├── DeleteFacturaAction.php
-│   │   ├── GetFacturaAction.php
-│   │   ├── ListFacturasAction.php
-│   │   └── UpdateFacturaAction.php
-│   └── Controllers/FacturaController.php
-└── Infrastructure/
-    ├── Mappers/FacturaMapper.php
-    ├── Migrations/2026_01_01_180035_create_facturas_table.php
-    ├── Models/FacturaEloquentModel.php
-    ├── Repositories/EloquentFacturaRepository.php
-    ├── Requests/
-    │   ├── StoreFacturaRequest.php
-    │   └── UpdateFacturaRequest.php
-    └── Resources/FacturaResource.php
+app/                 Integración Laravel, middleware y providers
+bootstrap/           Arranque de Laravel
+config/              Configuración versionada sin credenciales
+database/            Migraciones transversales, factories y seeders
+resources/js/        Aplicación Vue/Inertia
+routes/              Rutas generales
+src/<Context>/       Contextos funcionales
+tests/               Pruebas automatizadas
 ```
 
-Responsabilidades:
+Los contextos pueden contener:
 
-- **Modelo (MVC):** entidad de dominio, contrato del repositorio y persistencia Eloquent.
-- **Vista (MVC):** representación JSON de `FacturaResource`.
-- **Controlador (MVC):** recibe HTTP, delega al caso de uso y construye la respuesta.
-- **Dominio (DDD):** representa `Factura` sin depender del framework.
-- **Aplicación (DDD):** implementa un caso de uso por operación.
-- **Infraestructura (DDD):** adapta HTTP, Laravel y la base de datos al dominio.
+```text
+Application/         Casos de uso y controladores
+Domain/              Entidades, contratos y excepciones
+Infrastructure/      Eloquent, repositorios, requests, recursos y migraciones
+api.php              Rutas API opcionales
+web.php              Rutas web opcionales
+```
 
-`BoundedContextServiceProvider` enlaza `FacturaRepositoryInterface` con `EloquentFacturaRepository`, aplicando inversión de dependencias.
+`BoundedContextServiceProvider` mantiene una lista explícita de contextos activos. Esta decisión evita cargar accidentalmente rutas o migraciones por la sola existencia de un directorio.
+
+## Rutas
+
+Las rutas generales se encuentran en `routes/`. Las rutas de cada contexto se cargan desde `src/<Context>/api.php` y `src/<Context>/web.php`.
+
+Las rutas API de contexto se publican bajo `/api/v1` y utilizan el middleware `api`. Cada contexto decide si requiere `auth:sanctum`.
 
 ## Autenticación
 
-El recurso usa `auth:sanctum`. Primero se registra un usuario o se inicia sesión:
+La aplicación conserva dos flujos:
 
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
-Accept: application/json
+- Web: sesión Laravel, protección CSRF y regeneración de sesión.
+- API: tokens personales de Laravel Sanctum.
 
-{
-  "name": "Usuario API",
-  "email": "usuario@example.com",
-  "password": "password123",
-  "password_confirmation": "password123"
-}
+Auth y usuarios son infraestructura reutilizable. Edificios aplica una policy basada en la asignación explícita `edificio_usuario`; los roles y permisos detallados por edificio continúan pendientes.
+
+## PostgreSQL y esquema privado
+
+El esquema de aplicación se configura mediante `DB_SCHEMA` y por defecto es `administracion_edificios`.
+
+La migración `2026_08_20_000000_create_administracion_edificios_schema.php` crea el esquema únicamente en PostgreSQL. En SQLite no ejecuta DDL específico, por lo que la suite puede continuar usando una base en memoria.
+
+Durante la transición:
+
+- El `search_path` es `administracion_edificios,public`.
+- Las tablas históricas permanecen en `public` y siguen siendo accesibles como fallback.
+- Las tablas nuevas sin calificar se crearán en `administracion_edificios`.
+- El repositorio de migraciones continúa en `public.migrations`.
+- `edificios` y `edificio_usuario` residen en `administracion_edificios`.
+- No se movieron ni duplicaron datos históricos.
+
+`DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
+
+No debe cambiarse el `search_path` sin conservar la calificación de `public.migrations`. Laravel consulta el esquema actual al comprobar la existencia del repositorio y podría considerar pendientes todas las migraciones históricas.
+
+No use `migrate:fresh`, `migrate:reset` ni `migrate:refresh` para esta transición. Pueden eliminar tablas de ambos esquemas y recrear las tablas históricas en una ubicación diferente. Tampoco debe ejecutarse un rollback que atraviese la migración que crea el esquema privado.
+
+## Módulo Edificios
+
+El contexto `src/Edificio` implementa entidad, estado de dominio, repositorio, mapper, casos de uso, policy, requests, controlador web y migración.
+
+Reglas actuales:
+
+- El creador queda asignado al edificio dentro de la misma transacción.
+- El listado sólo devuelve edificios asignados al usuario autenticado.
+- La consulta, actualización y modificación de estado requieren una asignación existente.
+- La interfaz no acepta eliminación física; utiliza los estados `activo` e `inactivo`.
+- El RUC es opcional, pero no puede repetirse cuando está informado.
+- La asignación referencia `public.users` mientras Auth permanezca como infraestructura heredada reutilizable.
+
+Rutas web:
+
+```text
+GET    /edificios
+GET    /edificios/create
+POST   /edificios
+GET    /edificios/{edificio}
+GET    /edificios/{edificio}/edit
+PUT    /edificios/{edificio}
+PATCH  /edificios/{edificio}/estado
 ```
 
-El valor `data.access_token` de la respuesta se envía en las operaciones de facturas:
+## Módulos transitorios
 
-```http
-Authorization: Bearer {access_token}
-Accept: application/json
-```
+| Contexto | Estado | Decisión pendiente |
+|---|---|---|
+| Auth | Reutilizable | Añadir roles, permisos y políticas |
+| Cliente | Web y API activas | Rediseñar como personas y relaciones con unidades |
+| Categoria | API activa | Retirar o adaptar cuando se defina el catálogo real |
+| Producto | API activa | Retirar o adaptar cuando se definan servicios y conceptos |
+| Factura | API heredada activa | Sustituir por comprobantes correctamente modelados |
 
-## Operaciones CRUD
+Las páginas Vue de Factura incompatibles con su API y los dashboards de demostración fueron retirados. El backend heredado permanece porque todavía tiene rutas y pruebas funcionales.
 
-### Crear
-
-```http
-POST /api/v1/facturas
-```
-
-```json
-{
-  "name": "Acme Ecuador",
-  "ruc": "1790012345001",
-  "email": "billing@acme.test",
-  "phone": "+593 2 555 0100",
-  "address": "Av. Naciones Unidas 123",
-  "city": "Quito",
-  "country": "Ecuador",
-  "status": "active"
-}
-```
-
-Devuelve `201 Created`. `id` y `created_at` se generan en el servidor y no se aceptan como entrada.
-
-### Listar
-
-```http
-GET /api/v1/facturas
-```
-
-Devuelve `200 OK` con una colección ordenada desde la factura más reciente:
-
-```json
-{
-  "data": [
-    {
-      "id": "7b9de03b-c58d-45d0-9ee8-e47b28db14a5",
-      "name": "Acme Ecuador",
-      "ruc": "1790012345001",
-      "email": "billing@acme.test",
-      "phone": "+593 2 555 0100",
-      "address": "Av. Naciones Unidas 123",
-      "city": "Quito",
-      "country": "Ecuador",
-      "status": "active",
-      "created_at": "2026-08-04 12:00:00"
-    }
-  ]
-}
-```
-
-### Consultar
-
-```http
-GET /api/v1/facturas/{id}
-```
-
-Devuelve `200 OK` o `404 Not Found` cuando el UUID no existe.
-
-### Actualizar
-
-```http
-PATCH /api/v1/facturas/{id}
-```
-
-Se puede enviar uno o varios campos editables:
-
-```json
-{
-  "email": "invoices@acme.test",
-  "status": "inactive"
-}
-```
-
-También se admite `PUT`. Devuelve `200 OK`, `404 Not Found` o `422 Unprocessable Entity`.
-
-### Eliminar
-
-```http
-DELETE /api/v1/facturas/{id}
-```
-
-Respuesta `200 OK`:
-
-```json
-{
-  "message": "Factura eliminada exitosamente."
-}
-```
-
-## Validación
-
-- Todos los campos son obligatorios al crear.
-- `ruc` puede tener hasta 20 caracteres y no se puede repetir.
-- `email` debe tener un formato válido.
-- En una actualización sólo se validan los campos enviados.
-- `created_at` no se puede modificar mediante la API.
-
-Los errores de entrada usan el formato de validación estándar de Laravel y el código HTTP `422`.
-
-## Ejecución local
+## Verificaciones
 
 ```bash
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate:fresh
-php artisan serve
-```
-
-Para ejecutar la suite automatizada:
-
-```bash
+composer validate
+php artisan about
+php artisan route:list
+php artisan migrate:status
 php artisan test
+npm run build
 ```
+
+Para ejecutar pruebas con base de datos, PHP CLI debe tener disponible `pdo_sqlite`.
+
+## Restricciones de mantenimiento
+
+- No versionar `.env` ni credenciales.
+- No editar migraciones históricas aplicadas.
+- Usar migraciones nuevas para cambios estructurales.
+- No retirar contextos activos sin resolver primero rutas, datos y dependencias.
+- No generar datos demostrativos en el seeder principal.
+- No presentar métricas simuladas como información administrativa.

@@ -15,7 +15,10 @@ final class DDDStructure extends Command
      *
      * @var string
      */
-    protected $signature = 'make:ddd {context : The bounded context name (e.g., Pedido, Inventario)}';
+    protected $signature = 'make:ddd
+                            {context : The bounded context name (e.g., Edificio, Cobranza)}
+                            {--api : Create an API route file}
+                            {--web : Create a web route file}';
 
     /**
      * The console command description.
@@ -31,15 +34,8 @@ final class DDDStructure extends Command
      */
     private array $directories = [
         'Application',
-        'Application/Controllers',
         'Domain',
-        'Domain/Entities',
         'Infrastructure',
-        'Infrastructure/Mappers',
-        'Infrastructure/Migrations',
-        'Infrastructure/Models',
-        'Infrastructure/Requests',
-        'Infrastructure/Resources',
     ];
 
     /**
@@ -68,33 +64,34 @@ final class DDDStructure extends Command
 
         $this->newLine();
 
-        // Create route files
-        $this->createRouteFiles($basePath, $context);
+        if ($this->option('api')) {
+            $this->createRouteFile($basePath, $context, 'api');
+        }
+
+        if ($this->option('web')) {
+            $this->createRouteFile($basePath, $context, 'web');
+        }
 
         $this->newLine();
         $this->info("Bounded context '{$context}' created successfully!");
         $this->newLine();
         $this->line('<fg=yellow>Next steps:</>');
-        $this->line("  1. Register your routes in the BoundedContextServiceProvider");
-        $this->line("  2. Create your domain entities in src/{$context}/Domain/Entities/");
-        $this->line("  3. Define repository contracts in src/{$context}/Domain/Contracts/");
+        $this->line('  1. Implement the first executable use case and its tests');
+        $this->line('  2. Add the context to BoundedContextServiceProvider');
+        $this->line('  3. Bind a repository only when a domain contract is required');
 
         return Command::SUCCESS;
     }
 
     /**
-     * Create the route files for the bounded context.
+     * Create a requested route file for the bounded context.
      */
-    private function createRouteFiles(string $basePath, string $context): void
+    private function createRouteFile(string $basePath, string $context, string $type): void
     {
-        $apiContent = $this->getRouteFileContent($context, 'api');
-        $webContent = $this->getRouteFileContent($context, 'web');
+        $path = $basePath . "/{$type}.php";
 
-        File::put($basePath . '/api.php', $apiContent);
-        $this->line("  <fg=green>Created:</> {$basePath}/api.php");
-
-        File::put($basePath . '/web.php', $webContent);
-        $this->line("  <fg=green>Created:</> {$basePath}/web.php");
+        File::put($path, $this->getRouteFileContent($context, $type));
+        $this->line("  <fg=green>Created:</> {$path}");
     }
 
     /**

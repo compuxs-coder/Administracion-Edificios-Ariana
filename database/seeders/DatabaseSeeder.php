@@ -2,16 +2,10 @@
 
 namespace Database\Seeders;
 
-use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Database\Seeders\CategoriaSeeder;
-use Database\Seeders\ProductoSeeder;
-use Database\Seeders\ClienteSeeder;
-use Database\Seeders\ProveedorSeeder;
 
 class DatabaseSeeder extends Seeder
-
 {
     use WithoutModelEvents;
 
@@ -20,9 +14,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            CategoriaSeeder::class,
-            ProductoSeeder::class,
-        ]);
+        // Add only deterministic seeders required by the administration domain.
     }
 }

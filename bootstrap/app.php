@@ -8,6 +8,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Support\MessageBag;
 use Illuminate\Validation\ValidationException;
 use Src\Factura\Domain\Exceptions\FacturaNotFoundException;
+use Src\Edificio\Domain\Exceptions\EdificioNotFoundException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (EdificioNotFoundException $exception, $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $exception->getMessage()], 404);
+            }
+
+            return redirect()
+                ->route('edificios.index')
+                ->with('error', $exception->getMessage());
+        });
+
         $exceptions->render(function (FacturaNotFoundException $exception, $request) {
             if (! $request->is('api/*')) {
                 return null;
