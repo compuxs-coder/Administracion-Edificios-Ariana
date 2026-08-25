@@ -89,6 +89,11 @@ function getRowItems(row: Row<Edificio>) {
       icon: 'i-lucide-pencil',
       onSelect: () => router.visit(route('edificios.edit', edificio.id))
     },
+    {
+      label: 'Estructura física',
+      icon: 'i-lucide-network',
+      onSelect: () => router.visit(route('edificios.estructura', edificio.id))
+    },
     { type: 'separator' },
     {
       label: edificio.estado === 'activo' ? 'Inactivar' : 'Activar',

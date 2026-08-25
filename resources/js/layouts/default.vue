@@ -29,6 +29,11 @@ const links = [[{
   to: '/edificios',
   onSelect: () => navigateTo('/edificios')
 }, {
+  label: 'Departamentos',
+  icon: 'i-lucide-panels-top-left',
+  to: '/departamentos',
+  onSelect: () => navigateTo('/departamentos')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

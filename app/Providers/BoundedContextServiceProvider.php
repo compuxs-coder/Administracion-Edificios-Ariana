@@ -8,9 +8,13 @@ use Illuminate\Support\ServiceProvider;
 use Src\Auth\Domain\Contracts\UserRepositoryInterface;
 use Src\Auth\Infrastructure\Repositories\EloquentUserRepository;
 use Src\Edificio\Application\Policies\EdificioPolicy;
+use Src\Edificio\Domain\Contracts\DepartamentoRepositoryInterface;
 use Src\Edificio\Domain\Contracts\EdificioRepositoryInterface;
+use Src\Edificio\Domain\Contracts\EstructuraRepositoryInterface;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Infrastructure\Repositories\EloquentDepartamentoRepository;
 use Src\Edificio\Infrastructure\Repositories\EloquentEdificioRepository;
+use Src\Edificio\Infrastructure\Repositories\EloquentEstructuraRepository;
 use Src\Factura\Domain\Contracts\FacturaRepositoryInterface;
 use Src\Factura\Infrastructure\Repositories\EloquentFacturaRepository;
 
@@ -32,6 +36,8 @@ class BoundedContextServiceProvider extends ServiceProvider
     {
         $this->app->bind(UserRepositoryInterface::class, EloquentUserRepository::class);
         $this->app->bind(EdificioRepositoryInterface::class, EloquentEdificioRepository::class);
+        $this->app->bind(EstructuraRepositoryInterface::class, EloquentEstructuraRepository::class);
+        $this->app->bind(DepartamentoRepositoryInterface::class, EloquentDepartamentoRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

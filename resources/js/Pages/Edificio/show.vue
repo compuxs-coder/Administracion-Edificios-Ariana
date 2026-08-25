@@ -42,17 +42,30 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('es', {
         </template>
         <template #right>
           <UButton
+            color="primary"
+            icon="i-lucide-network"
+            label="Estructura"
+            aria-label="Ver estructura física"
+            variant="subtle"
+            :ui="{ label: 'hidden sm:inline' }"
+            @click="router.visit(route('edificios.estructura', edificio.id))"
+          />
+          <UButton
             color="neutral"
             icon="i-lucide-pencil"
             label="Editar"
+            aria-label="Editar edificio"
             variant="outline"
+            :ui="{ label: 'hidden sm:inline' }"
             @click="router.visit(route('edificios.edit', edificio.id))"
           />
           <UButton
             :color="edificio.estado === 'activo' ? 'error' : 'success'"
             :icon="edificio.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'"
             :label="edificio.estado === 'activo' ? 'Inactivar' : 'Activar'"
+            :aria-label="edificio.estado === 'activo' ? 'Inactivar edificio' : 'Activar edificio'"
             variant="subtle"
+            :ui="{ label: 'hidden sm:inline' }"
             @click="isStatusModalOpen = true"
           />
         </template>

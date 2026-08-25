@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios es el primer contexto funcional. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios es el primer contexto funcional e incluye su estructura física. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -23,6 +23,21 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 
 La asignación inicial se implementa mediante `edificio_usuario`. El creador recibe acceso al edificio y las policies validan esa asignación. Roles detallados y relaciones de ocupación se definirán en las siguientes etapas.
 
+## Estructura física
+
+Torres, pisos, departamentos, parqueaderos y bodegas forman parte del contexto `Edificio`; no se separan en contextos vacíos. La jerarquía se protege con claves foráneas compuestas que incluyen `edificio_id`.
+
+Decisiones implementadas:
+
+1. Cada edificio tiene una única torre predeterminada, creada automáticamente, para representar edificios pequeños sin bloques explícitos.
+2. Un departamento guarda `edificio_id` y `piso_id`. Su torre se deriva del piso para evitar referencias contradictorias.
+3. El código de departamentos, parqueaderos y bodegas es único dentro del edificio.
+4. La alícuota usa `numeric(9,6)` y debe estar entre 0 y 100.
+5. Parqueaderos y bodegas son entidades independientes. Su disponibilidad se deriva de una asignación temporal vigente, no de un estado duplicado.
+6. Las asignaciones conservan `fecha_inicio` y `fecha_fin`; PostgreSQL impide asignaciones vigentes duplicadas e intervalos históricos superpuestos.
+7. La inactivación reemplaza la eliminación física. Las FKs usan `RESTRICT` para proteger la jerarquía y el historial.
+8. El estado administrativo del departamento no representa ocupación. Propietarios y residentes se incorporarán posteriormente con vigencia propia.
+
 ## Principios
 
 1. Un sustantivo del negocio no implica automáticamente un bounded context.
@@ -38,7 +53,7 @@ La asignación inicial se implementa mediante `edificio_usuario`. El creador rec
 
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
-| Propiedad y ocupación | Edificios, unidades, alícuotas, propietarios y residentes |
+| Propiedad y ocupación | Edificios, estructura física y alícuotas implementados; propietarios y residentes pendientes |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
 | Cuentas por cobrar | Cuotas, cargos, pagos, saldos y comprobantes |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
@@ -52,7 +67,7 @@ La asignación inicial se implementa mediante `edificio_usuario`. El creador rec
 - Definir roles y permisos específicos dentro de cada edificio.
 - Definir la diferencia entre persona, propietario, residente e inquilino.
 - Definir vigencia e historial de ocupación.
-- Definir la precisión, moneda y reglas de alícuotas.
+- Definir reglas financieras que consumen la alícuota y si su suma debe exigirse en 100%.
 - Definir si comprobante significa recibo emitido, evidencia de pago o ambos.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 
@@ -104,6 +119,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas `edificios`, `edificio_usuario`, `torres`, `pisos`, `departamentos`, `parqueaderos`, `bodegas`, `departamento_parqueaderos` y `departamento_bodegas` pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

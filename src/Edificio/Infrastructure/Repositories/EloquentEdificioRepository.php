@@ -8,6 +8,7 @@ use Src\Edificio\Domain\Contracts\EdificioRepositoryInterface;
 use Src\Edificio\Domain\Entities\Edificio;
 use Src\Edificio\Infrastructure\Mappers\EdificioMapper;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Infrastructure\Models\TorreEloquentModel;
 
 final class EloquentEdificioRepository implements EdificioRepositoryInterface
 {
@@ -59,6 +60,14 @@ final class EloquentEdificioRepository implements EdificioRepositoryInterface
                 EdificioMapper::toPersistence($edificio),
             );
             $model->usuarios()->attach($userId);
+            TorreEloquentModel::query()->forceCreate([
+                'edificio_id' => $model->id,
+                'codigo' => 'PRINCIPAL',
+                'nombre' => 'Torre principal',
+                'descripcion' => null,
+                'es_predeterminada' => true,
+                'estado' => 'activo',
+            ]);
 
             return EdificioMapper::toDomain($model->refresh());
         });

@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona la base de Laravel, autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios es el primer módulo funcional. Unidades, propietarios, residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
+El proyecto proporciona la base de Laravel, autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios y su estructura física son los primeros módulos funcionales. Propietarios, residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -61,6 +61,7 @@ Durante la transición:
 - Las tablas nuevas sin calificar se crearán en `administracion_edificios`.
 - El repositorio de migraciones continúa en `public.migrations`.
 - `edificios` y `edificio_usuario` residen en `administracion_edificios`.
+- Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -81,6 +82,7 @@ Reglas actuales:
 - La interfaz no acepta eliminación física; utiliza los estados `activo` e `inactivo`.
 - El RUC es opcional, pero no puede repetirse cuando está informado.
 - La asignación referencia `public.users` mientras Auth permanezca como infraestructura heredada reutilizable.
+- Cada edificio nuevo recibe una torre principal para soportar edificios sin bloques explícitos.
 
 Rutas web:
 
@@ -93,6 +95,43 @@ GET    /edificios/{edificio}/edit
 PUT    /edificios/{edificio}
 PATCH  /edificios/{edificio}/estado
 ```
+
+## Estructura física
+
+La estructura física permanece dentro de `src/Edificio` y sigue el flujo `Controller -> Action -> RepositoryInterface -> EloquentRepository`.
+
+Jerarquía y reglas:
+
+- `Edificio -> Torre -> Piso -> Departamento`.
+- El departamento se vincula al edificio y al piso; la torre se deriva del piso.
+- Las FKs compuestas impiden relacionar elementos de edificios distintos.
+- Los códigos son únicos dentro del edificio y se normalizan en mayúsculas.
+- La alícuota utiliza seis decimales y acepta valores entre 0 y 100.
+- Los estados administrativos son `activo` e `inactivo`; no existe eliminación web.
+- Parqueaderos y bodegas pueden asignarse en grupos a un departamento.
+- La disponibilidad `disponible/asignado/inactivo` se calcula desde el estado administrativo y la asignación vigente.
+- Cambiar anexos cierra el intervalo anterior y conserva el historial.
+- PostgreSQL impide intervalos superpuestos para un mismo anexo mediante guards transaccionales.
+- Inactivar un departamento cierra sus asignaciones vigentes; la ocupación se modelará en una etapa posterior.
+
+Superficies web principales:
+
+```text
+GET    /edificios/{edificio}/estructura
+POST   /edificios/{edificio}/torres
+POST   /edificios/{edificio}/pisos
+POST   /edificios/{edificio}/parqueaderos
+POST   /edificios/{edificio}/bodegas
+PATCH  /edificios/{edificio}/estructura/{tipo}/{elemento}/estado
+GET    /departamentos
+GET    /departamentos/create
+POST   /edificios/{edificio}/departamentos
+GET    /edificios/{edificio}/departamentos/{departamento}/edit
+PUT    /edificios/{edificio}/departamentos/{departamento}
+PATCH  /edificios/{edificio}/departamentos/{departamento}/estado
+```
+
+Las operaciones de actualización de torres, pisos y anexos utilizan rutas `PUT` equivalentes. Todas las superficies requieren sesión y autorización sobre el edificio exacto.
 
 ## Módulos transitorios
 

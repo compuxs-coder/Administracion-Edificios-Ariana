@@ -5,12 +5,14 @@ namespace Src\Edificio\Infrastructure\Models;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Domain\Enums\EstadoEdificio;
+use Src\Edificio\Infrastructure\Models\Concerns\UsesApplicationSchema;
 
 final class EdificioEloquentModel extends Model
 {
-    use HasUuid;
+    use HasUuid, UsesApplicationSchema;
 
     protected $fillable = [
         'id',
@@ -42,6 +44,36 @@ final class EdificioEloquentModel extends Model
         )->withTimestamps();
     }
 
+    /** @return HasMany<TorreEloquentModel, $this> */
+    public function torres(): HasMany
+    {
+        return $this->hasMany(TorreEloquentModel::class, 'edificio_id');
+    }
+
+    /** @return HasMany<PisoEloquentModel, $this> */
+    public function pisos(): HasMany
+    {
+        return $this->hasMany(PisoEloquentModel::class, 'edificio_id');
+    }
+
+    /** @return HasMany<DepartamentoEloquentModel, $this> */
+    public function departamentos(): HasMany
+    {
+        return $this->hasMany(DepartamentoEloquentModel::class, 'edificio_id');
+    }
+
+    /** @return HasMany<ParqueaderoEloquentModel, $this> */
+    public function parqueaderos(): HasMany
+    {
+        return $this->hasMany(ParqueaderoEloquentModel::class, 'edificio_id');
+    }
+
+    /** @return HasMany<BodegaEloquentModel, $this> */
+    public function bodegas(): HasMany
+    {
+        return $this->hasMany(BodegaEloquentModel::class, 'edificio_id');
+    }
+
     protected function casts(): array
     {
         return [
@@ -51,12 +83,4 @@ final class EdificioEloquentModel extends Model
         ];
     }
 
-    private function qualifiedTable(string $table): string
-    {
-        if ($this->getConnection()->getDriverName() !== 'pgsql') {
-            return $table;
-        }
-
-        return config('database.application_schema').'.'.$table;
-    }
 }
