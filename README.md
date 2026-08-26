@@ -12,8 +12,11 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
 - Alícuotas con seis decimales, filtros de departamentos e historial temporal de anexos.
 - Disponibilidad de parqueaderos y bodegas derivada de sus asignaciones vigentes.
+- Gestión de propietarios naturales y jurídicos con búsqueda, filtros, detalle y estado.
+- Copropiedad por porcentajes, historial inmutable y transferencias atómicas de departamentos.
+- Aislamiento de propietarios por edificios administrados, sin convertirlos en usuarios o roles.
 - Dashboard sin métricas simuladas.
-- CRUD web y API de Cliente, conservado temporalmente mientras se define el modelo de propietarios, residentes y proveedores.
+- CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
 - Tablas nuevas de Edificios y estructura física dentro del esquema PostgreSQL privado.
 

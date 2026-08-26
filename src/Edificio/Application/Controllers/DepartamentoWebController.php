@@ -19,6 +19,7 @@ use Src\Edificio\Domain\Enums\EstadoEstructura;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Requests\ChangeEstructuraStatusRequest;
 use Src\Edificio\Infrastructure\Requests\SaveDepartamentoRequest;
+use Src\Propiedad\Application\Actions\GetDepartamentoPropiedadAction;
 
 final class DepartamentoWebController extends Controller
 {
@@ -29,6 +30,7 @@ final class DepartamentoWebController extends Controller
         private readonly CreateDepartamentoAction $createDepartamento,
         private readonly UpdateDepartamentoAction $updateDepartamento,
         private readonly ChangeDepartamentoStatusAction $changeStatus,
+        private readonly GetDepartamentoPropiedadAction $getPropiedad,
     ) {}
 
     public function index(Request $request): Response
@@ -91,6 +93,20 @@ final class DepartamentoWebController extends Controller
         return Inertia::render('Departamento/edit', [
             'departamento' => $this->getDepartamento->execute($edificio->id, $departamento),
             'edificios' => $this->getOptions->execute((string) $request->user()->getAuthIdentifier()),
+        ]);
+    }
+
+    public function show(
+        Request $request,
+        EdificioEloquentModel $edificio,
+        string $departamento,
+    ): Response {
+        Gate::authorize('view', $edificio);
+        $userId = (string) $request->user()->getAuthIdentifier();
+
+        return Inertia::render('Departamento/show', [
+            'departamento' => $this->getDepartamento->execute($edificio->id, $departamento),
+            'propiedad' => $this->getPropiedad->execute($userId, $edificio->id, $departamento),
         ]);
     }
 

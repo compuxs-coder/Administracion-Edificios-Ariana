@@ -124,3 +124,86 @@ export interface EdificioEstructuraOption {
   parqueaderos: Array<{ id: string, codigo: string, departamentoId: string | null }>
   bodegas: Array<{ id: string, codigo: string, departamentoId: string | null }>
 }
+
+export type TipoPersona = 'persona_natural' | 'persona_juridica'
+export type TipoIdentificacion = 'cedula' | 'ruc' | 'pasaporte' | 'otro'
+export type EstadoPropietario = 'activo' | 'inactivo'
+export type EstadoTitularidad = 'activa' | 'finalizada'
+
+export interface PropiedadDepartamento {
+  id: string
+  edificioId: string
+  edificio: string
+  departamentoId: string
+  departamento: string
+  torre: string
+  piso: string
+  porcentaje: string
+  fechaInicio: string
+  fechaFin: string | null
+  estado: EstadoTitularidad
+  observaciones: string | null
+}
+
+export interface Propietario {
+  id: string
+  tipoPersona: TipoPersona
+  nombres: string | null
+  apellidos: string | null
+  razonSocial: string | null
+  nombre: string
+  tipoIdentificacion: TipoIdentificacion
+  identificacion: string
+  telefono: string | null
+  celular: string | null
+  correo: string | null
+  direccion: string | null
+  estado: EstadoPropietario
+  observaciones: string | null
+  propiedadesActualesCount: number
+  puedeGestionar: boolean | null
+  propiedadesActuales?: PropiedadDepartamento[]
+  historialPropiedades?: PropiedadDepartamento[]
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface PropietarioFormData {
+  edificio_id: string
+  tipo_persona: TipoPersona
+  nombres: string
+  apellidos: string
+  razon_social: string
+  tipo_identificacion: TipoIdentificacion
+  identificacion: string
+  telefono: string
+  celular: string
+  correo: string
+  direccion: string
+  observaciones: string
+}
+
+export interface PropietarioOption {
+  id: string
+  nombre: string
+  identificacion: string
+}
+
+export interface TitularidadDepartamento {
+  id: string
+  propietarioId: string
+  nombre: string
+  identificacion: string
+  porcentaje: string
+  fechaInicio: string
+  fechaFin: string | null
+  estado: EstadoTitularidad
+  observaciones: string | null
+}
+
+export interface DepartamentoPropiedad {
+  actuales: TitularidadDepartamento[]
+  historial: TitularidadDepartamento[]
+  opciones: PropietarioOption[]
+  participacionActual: string
+}

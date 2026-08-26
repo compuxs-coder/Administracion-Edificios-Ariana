@@ -35,6 +35,10 @@ Route::middleware('auth')->group(function () {
 
     Route::post('edificios/{edificio}/departamentos', [DepartamentoWebController::class, 'store'])
         ->name('departamentos.store');
+    Route::get('edificios/{edificio}/departamentos/{departamento}', [DepartamentoWebController::class, 'show'])
+        ->whereUuid('edificio')
+        ->whereUuid('departamento')
+        ->name('departamentos.show');
     Route::get('edificios/{edificio}/departamentos/{departamento}/edit', [DepartamentoWebController::class, 'edit'])
         ->name('departamentos.edit');
     Route::put('edificios/{edificio}/departamentos/{departamento}', [DepartamentoWebController::class, 'update'])

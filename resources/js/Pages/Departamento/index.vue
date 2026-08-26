@@ -156,6 +156,13 @@ const changeStatus = () => {
                   <div class="flex justify-end gap-1">
                     <UButton
                       color="neutral"
+                      icon="i-lucide-eye"
+                      variant="ghost"
+                      aria-label="Ver departamento"
+                      @click="router.visit(route('departamentos.show', [departamento.edificioId, departamento.id]))"
+                    />
+                    <UButton
+                      color="neutral"
                       icon="i-lucide-pencil"
                       variant="ghost"
                       aria-label="Editar departamento"

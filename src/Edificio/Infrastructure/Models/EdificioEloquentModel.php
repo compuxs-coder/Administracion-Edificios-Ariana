@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Domain\Enums\EstadoEdificio;
 use Src\Edificio\Infrastructure\Models\Concerns\UsesApplicationSchema;
+use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 
 final class EdificioEloquentModel extends Model
 {
@@ -72,6 +73,17 @@ final class EdificioEloquentModel extends Model
     public function bodegas(): HasMany
     {
         return $this->hasMany(BodegaEloquentModel::class, 'edificio_id');
+    }
+
+    /** @return BelongsToMany<PropietarioEloquentModel, $this> */
+    public function propietarios(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            PropietarioEloquentModel::class,
+            $this->qualifiedTable('propietario_edificio'),
+            'edificio_id',
+            'propietario_id',
+        )->withTimestamps();
     }
 
     protected function casts(): array

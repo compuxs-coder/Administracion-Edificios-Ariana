@@ -17,12 +17,19 @@ use Src\Edificio\Infrastructure\Repositories\EloquentEdificioRepository;
 use Src\Edificio\Infrastructure\Repositories\EloquentEstructuraRepository;
 use Src\Factura\Domain\Contracts\FacturaRepositoryInterface;
 use Src\Factura\Infrastructure\Repositories\EloquentFacturaRepository;
+use Src\Propiedad\Application\Policies\PropietarioPolicy;
+use Src\Propiedad\Domain\Contracts\PropietarioRepositoryInterface;
+use Src\Propiedad\Domain\Contracts\TitularidadRepositoryInterface;
+use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Repositories\EloquentPropietarioRepository;
+use Src\Propiedad\Infrastructure\Repositories\EloquentTitularidadRepository;
 
 class BoundedContextServiceProvider extends ServiceProvider
 {
     private const BOUNDED_CONTEXTS = [
         'Auth',
         'Edificio',
+        'Propiedad',
         'Cliente',
         'Categoria',
         'Producto',
@@ -38,6 +45,8 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(EdificioRepositoryInterface::class, EloquentEdificioRepository::class);
         $this->app->bind(EstructuraRepositoryInterface::class, EloquentEstructuraRepository::class);
         $this->app->bind(DepartamentoRepositoryInterface::class, EloquentDepartamentoRepository::class);
+        $this->app->bind(PropietarioRepositoryInterface::class, EloquentPropietarioRepository::class);
+        $this->app->bind(TitularidadRepositoryInterface::class, EloquentTitularidadRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 
@@ -47,6 +56,7 @@ class BoundedContextServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(EdificioEloquentModel::class, EdificioPolicy::class);
+        Gate::policy(PropietarioEloquentModel::class, PropietarioPolicy::class);
 
         $this->loadBoundedContextRoutes();
         $this->loadBoundedContextMigrations();

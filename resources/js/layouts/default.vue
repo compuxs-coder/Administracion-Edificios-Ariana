@@ -34,6 +34,11 @@ const links = [[{
   to: '/departamentos',
   onSelect: () => navigateTo('/departamentos')
 }, {
+  label: 'Propietarios',
+  icon: 'i-lucide-contact-round',
+  to: '/propietarios',
+  onSelect: () => navigateTo('/propietarios')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

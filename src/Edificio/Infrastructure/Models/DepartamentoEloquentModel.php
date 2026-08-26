@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
 use Src\Edificio\Infrastructure\Models\Concerns\UsesApplicationSchema;
+use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 
 final class DepartamentoEloquentModel extends Model
 {
@@ -42,6 +43,12 @@ final class DepartamentoEloquentModel extends Model
     public function asignacionesBodegas(): HasMany
     {
         return $this->hasMany(DepartamentoBodegaEloquentModel::class, 'departamento_id');
+    }
+
+    /** @return HasMany<DepartamentoPropietarioEloquentModel, $this> */
+    public function titularidades(): HasMany
+    {
+        return $this->hasMany(DepartamentoPropietarioEloquentModel::class, 'departamento_id');
     }
 
     protected function casts(): array

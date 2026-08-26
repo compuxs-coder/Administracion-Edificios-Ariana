@@ -142,6 +142,7 @@ final class EloquentDepartamentoRepository implements DepartamentoRepositoryInte
         array $bodegaIds,
     ): array {
         return DB::transaction(function () use ($edificioId, $departamentoId, $data, $parqueaderoIds, $bodegaIds): array {
+            EdificioEloquentModel::query()->lockForUpdate()->findOrFail($edificioId);
             $departamento = DepartamentoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->lockForUpdate()
@@ -179,6 +180,7 @@ final class EloquentDepartamentoRepository implements DepartamentoRepositoryInte
         EstadoEstructura $estado,
     ): void {
         DB::transaction(function () use ($edificioId, $departamentoId, $estado): void {
+            EdificioEloquentModel::query()->lockForUpdate()->findOrFail($edificioId);
             $departamento = DepartamentoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->lockForUpdate()

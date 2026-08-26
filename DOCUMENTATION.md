@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona la base de Laravel, autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios y su estructura física son los primeros módulos funcionales. Propietarios, residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física y propietarios son módulos funcionales. Residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -62,6 +62,7 @@ Durante la transición:
 - El repositorio de migraciones continúa en `public.migrations`.
 - `edificios` y `edificio_usuario` residen en `administracion_edificios`.
 - Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
+- Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -133,12 +134,53 @@ PATCH  /edificios/{edificio}/departamentos/{departamento}/estado
 
 Las operaciones de actualización de torres, pisos y anexos utilizan rutas `PUT` equivalentes. Todas las superficies requieren sesión y autorización sobre el edificio exacto.
 
+## Módulo Propiedad
+
+El contexto `src/Propiedad` implementa propietarios naturales y jurídicos, directorio multiedificio y titularidad temporal de departamentos. El contexto heredado `Cliente` no se reutiliza porque carece de estados, historial, aislamiento por edificio y copropiedad.
+
+Tablas:
+
+- `propietarios`: identidad, contacto, estado y observaciones.
+- `propietario_edificio`: visibilidad administrativa de la identidad.
+- `departamento_propietarios`: porcentaje, vigencia, estado y snapshot histórico.
+
+Reglas de negocio:
+
+- La identificación es única dentro de su tipo.
+- Personas naturales requieren nombres y apellidos; jurídicas requieren razón social.
+- Una asignación requiere propietario y departamento activos.
+- Las participaciones pueden ser parciales, pero no superar 100% en ningún período.
+- Las transferencias reemplazan el conjunto actual y deben distribuir exactamente 100%.
+- Finalizar o transferir cierra las filas anteriores; nunca las elimina.
+- PostgreSQL serializa operaciones por departamento y rechaza solapamientos, sobreparticipación, mutación histórica, borrado y titularidades activas de propietarios inactivos.
+- La identidad histórica queda congelada dentro de cada titularidad.
+- Sólo usuarios asignados al edificio pueden consultar o modificar sus relaciones.
+- Una identidad compartida sólo puede editarse si el usuario administra todos sus edificios vinculados.
+
+Rutas principales:
+
+```text
+GET    /propietarios
+GET    /propietarios/create
+POST   /edificios/{edificio}/propietarios
+GET    /propietarios/{propietario}
+GET    /propietarios/{propietario}/edit
+PUT    /propietarios/{propietario}
+PATCH  /propietarios/{propietario}/estado
+GET    /edificios/{edificio}/departamentos/{departamento}
+POST   /edificios/{edificio}/departamentos/{departamento}/propietarios
+PATCH  /edificios/{edificio}/departamentos/{departamento}/propietarios/{titularidad}/finalizar
+POST   /edificios/{edificio}/departamentos/{departamento}/propietarios/transferir
+```
+
+No existen rutas de eliminación para propietarios o titularidades.
+
 ## Módulos transitorios
 
 | Contexto | Estado | Decisión pendiente |
 |---|---|---|
 | Auth | Reutilizable | Añadir roles, permisos y políticas |
-| Cliente | Web y API activas | Rediseñar como personas y relaciones con unidades |
+| Cliente | Web y API heredadas activas | Retirar después de inventariar consumidores; no se usa para Propiedad |
 | Categoria | API activa | Retirar o adaptar cuando se defina el catálogo real |
 | Producto | API activa | Retirar o adaptar cuando se definan servicios y conceptos |
 | Factura | API heredada activa | Sustituir por comprobantes correctamente modelados |
