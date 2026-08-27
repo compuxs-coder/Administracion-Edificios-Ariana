@@ -17,6 +17,10 @@ use Src\Edificio\Infrastructure\Repositories\EloquentEdificioRepository;
 use Src\Edificio\Infrastructure\Repositories\EloquentEstructuraRepository;
 use Src\Factura\Domain\Contracts\FacturaRepositoryInterface;
 use Src\Factura\Infrastructure\Repositories\EloquentFacturaRepository;
+use Src\Finanzas\Domain\Contracts\ConceptoCobroRepositoryInterface;
+use Src\Finanzas\Domain\Contracts\TarifaConceptoRepositoryInterface;
+use Src\Finanzas\Infrastructure\Repositories\EloquentConceptoCobroRepository;
+use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
 use Src\Propiedad\Domain\Contracts\PropietarioRepositoryInterface;
 use Src\Propiedad\Domain\Contracts\TitularidadRepositoryInterface;
@@ -30,6 +34,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Auth',
         'Edificio',
         'Propiedad',
+        'Finanzas',
         'Cliente',
         'Categoria',
         'Producto',
@@ -47,6 +52,8 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(DepartamentoRepositoryInterface::class, EloquentDepartamentoRepository::class);
         $this->app->bind(PropietarioRepositoryInterface::class, EloquentPropietarioRepository::class);
         $this->app->bind(TitularidadRepositoryInterface::class, EloquentTitularidadRepository::class);
+        $this->app->bind(ConceptoCobroRepositoryInterface::class, EloquentConceptoCobroRepository::class);
+        $this->app->bind(TarifaConceptoRepositoryInterface::class, EloquentTarifaConceptoRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

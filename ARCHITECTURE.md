@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física y Propiedad administra identidades de propietarios y titularidades. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades de propietarios y titularidades, y Finanzas configura conceptos y tarifas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -71,13 +71,32 @@ Reglas implementadas:
 - Modificar una identidad global exige acceso administrativo a todos los edificios vinculados.
 - Ser propietario no concede acceso mediante `edificio_usuario` ni crea una cuenta en `users`.
 
+## Finanzas: conceptos y tarifas
+
+El contexto `Finanzas` configura qué se cobrará posteriormente; no emite cargos, cuentas por cobrar, pagos ni saldos.
+
+1. `conceptos_cobro` es un catálogo local al edificio y define tipo, periodicidad, forma de cálculo y estado administrativo.
+2. `tarifas_concepto` guarda valores monetarios, porcentajes y demás parámetros por intervalo temporal; una tarifa no se sobrescribe ni se elimina.
+3. `tarifa_departamentos` conserva el alcance histórico cuando una tarifa se aplica a departamentos específicos.
+
+Reglas implementadas:
+
+- Los conceptos usan enums para tipo, periodicidad y forma de cálculo; el código es único dentro de cada edificio.
+- Los importes usan `numeric(14,4)` y los porcentajes `numeric(9,6)`; no se usan `float` para persistir o transformar importes.
+- Las vigencias son intervalos semiabiertos `[fecha_inicio, fecha_fin)`. `programada`, `vigente` y `finalizada` se derivan de esas fechas y no se almacenan de forma redundante.
+- Registrar una tarifa nueva cierra transaccionalmente la única tarifa abierta anterior cuando corresponde; PostgreSQL bloquea solapamientos, edición histórica y eliminación directa.
+- Tipo, periodicidad y forma de cálculo no pueden cambiar después de registrar una tarifa; el alcance de una tarifa finalizada también es inmutable.
+- El alcance soportado es `todo_el_edificio` o `departamentos_especificos`. Las FKs compuestas impiden seleccionar unidades de otro edificio.
+- La tabla de alcance es independiente de la tarifa, por lo que una extensión posterior puede añadir torre o piso sin reescribir tarifas históricas.
+- Consumo requiere forma `por_consumo` y unidad; interés requiere porcentaje y base de cálculo; las cuotas extraordinarias admiten monto total y número de cuotas.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas y propietarios implementados; residentes pendientes |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
-| Cuentas por cobrar | Cuotas, cargos, pagos, saldos y comprobantes |
+| Cuentas por cobrar | Configuración de conceptos y tarifas implementada; cargos, pagos, saldos y comprobantes pendientes |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
@@ -89,7 +108,7 @@ Reglas implementadas:
 - Definir roles y permisos específicos dentro de cada edificio.
 - Definir identidad reutilizable para residentes, inquilinos y proveedores sin acoplarla a autenticación.
 - Definir vigencia e historial de ocupación.
-- Definir reglas financieras que consumen la alícuota y si su suma debe exigirse en 100%.
+- Definir reglas de generación de cargos que consumen la alícuota y si su suma debe exigirse en 100%.
 - Definir si comprobante significa recibo emitido, evidencia de pago o ambos.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 
@@ -141,6 +160,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio y las tablas `propietarios`, `propietario_edificio` y `departamento_propietarios` pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, Propiedad y Finanzas (`conceptos_cobro`, `tarifas_concepto`, `tarifa_departamentos`) pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

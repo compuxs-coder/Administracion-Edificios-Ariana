@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física y propietarios son módulos funcionales. Residentes, cuotas, pagos, gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios y configuración de conceptos/tarifas son módulos funcionales. Residentes, cargos, pagos, gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -63,6 +63,7 @@ Durante la transición:
 - `edificios` y `edificio_usuario` residen en `administracion_edificios`.
 - Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
+- Conceptos de cobro, tarifas y sus alcances por departamento residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -174,6 +175,41 @@ POST   /edificios/{edificio}/departamentos/{departamento}/propietarios/transferi
 ```
 
 No existen rutas de eliminación para propietarios o titularidades.
+
+## Módulo Finanzas
+
+El contexto `src/Finanzas` configura conceptos de cobro y sus tarifas históricas por edificio. No genera cargos mensuales, cuentas por cobrar, pagos, recibos ni cartera; esas capacidades consumirán esta configuración en una etapa posterior.
+
+Tablas:
+
+- `conceptos_cobro`: código único por edificio, nombre, tipo, periodicidad, forma de cálculo y estado.
+- `tarifas_concepto`: valores `numeric(14,4)`, porcentajes `numeric(9,6)`, configuración de consumo/interés/cuotas extraordinarias y vigencia.
+- `tarifa_departamentos`: alcance histórico de tarifas aplicables a departamentos específicos.
+
+Reglas de negocio:
+
+- Tipos disponibles: ordinario, extraordinario, consumo, multa, interés y otro.
+- Periodicidades: mensual, trimestral, semestral, anual, único y manual.
+- Formas de cálculo: valor fijo, por alícuota, porcentaje, por consumo y manual.
+- El estado de concepto es `activo` o `inactivo`; el estado de tarifa se deriva de fechas como `programada`, `vigente` o `finalizada`.
+- Una nueva tarifa preserva la anterior cerrando su intervalo dentro de la misma transacción.
+- PostgreSQL bloquea tarifas solapadas, elimina la edición de una tarifa finalizada, evita el borrado de su historial y protege su alcance por departamento.
+- Tipo, periodicidad y forma de cálculo no se modifican cuando el concepto ya tiene tarifas.
+- El alcance soporta todo el edificio o departamentos específicos. FKs compuestas y revalidación transaccional rechazan departamentos de otro edificio.
+- Los conceptos de consumo requieren unidad y precio por unidad. Los intereses requieren porcentaje y base de cálculo. Las tarifas extraordinarias pueden registrar monto total y número de cuotas.
+
+Rutas principales:
+
+```text
+GET    /conceptos
+GET    /conceptos/create
+POST   /edificios/{edificio}/conceptos
+GET    /edificios/{edificio}/conceptos/{concepto}
+GET    /edificios/{edificio}/conceptos/{concepto}/edit
+PUT    /edificios/{edificio}/conceptos/{concepto}
+PATCH  /edificios/{edificio}/conceptos/{concepto}/estado
+POST   /edificios/{edificio}/conceptos/{concepto}/tarifas
+```
 
 ## Módulos transitorios
 

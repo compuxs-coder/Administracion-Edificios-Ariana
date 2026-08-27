@@ -15,6 +15,8 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Gestión de propietarios naturales y jurídicos con búsqueda, filtros, detalle y estado.
 - Copropiedad por porcentajes, historial inmutable y transferencias atómicas de departamentos.
 - Aislamiento de propietarios por edificios administrados, sin convertirlos en usuarios o roles.
+- Configuración financiera de conceptos de cobro, tarifas históricas, vigencias y alcance por edificio o departamento.
+- Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric`, porcentajes y cálculo por alícuota preparados para cargos futuros.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.

@@ -39,6 +39,11 @@ const links = [[{
   to: '/propietarios',
   onSelect: () => navigateTo('/propietarios')
 }, {
+  label: 'Conceptos de cobro',
+  icon: 'i-lucide-circle-dollar-sign',
+  to: '/conceptos',
+  onSelect: () => navigateTo('/conceptos')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

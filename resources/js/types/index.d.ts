@@ -207,3 +207,76 @@ export interface DepartamentoPropiedad {
   opciones: PropietarioOption[]
   participacionActual: string
 }
+
+export type TipoConceptoCobro = 'ordinario' | 'extraordinario' | 'consumo' | 'multa' | 'interes' | 'otro'
+export type PeriodicidadCobro = 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'unico' | 'manual'
+export type FormaCalculoCobro = 'valor_fijo' | 'por_alicuota' | 'porcentaje' | 'por_consumo' | 'manual'
+export type EstadoConceptoCobro = 'activo' | 'inactivo'
+export type AlcanceTarifa = 'todo_el_edificio' | 'departamentos_especificos'
+export type EstadoTarifa = 'vigente' | 'finalizada' | 'programada'
+export type BaseCalculoInteres = 'saldo_vencido' | 'capital_vencido' | 'saldo_total'
+
+export interface DepartamentoTarifa {
+  id: string
+  codigo: string
+  nombre: string
+}
+
+export interface TarifaConcepto {
+  id: string
+  valor: string | null
+  porcentaje: string | null
+  montoTotal: string | null
+  numeroCuotas: number | null
+  unidad: string | null
+  baseCalculo: BaseCalculoInteres | null
+  fechaInicio: string
+  fechaFin: string | null
+  alcance: AlcanceTarifa
+  observacion: string | null
+  estado: EstadoTarifa
+  departamentos: DepartamentoTarifa[]
+}
+
+export interface ConceptoCobro {
+  id: string
+  edificioId: string
+  edificio: string | null
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  tipo: TipoConceptoCobro
+  periodicidad: PeriodicidadCobro
+  formaCalculo: FormaCalculoCobro
+  estado: EstadoConceptoCobro
+  tarifaVigente: TarifaConcepto | null
+  tarifas?: TarifaConcepto[]
+  departamentosDisponibles?: DepartamentoTarifa[]
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface ConceptoCobroFormData {
+  edificio_id: string
+  codigo: string
+  nombre: string
+  descripcion: string
+  tipo: TipoConceptoCobro
+  periodicidad: PeriodicidadCobro
+  forma_calculo: FormaCalculoCobro
+  estado: EstadoConceptoCobro
+}
+
+export interface TarifaConceptoFormData {
+  valor: string
+  porcentaje: string
+  monto_total: string
+  numero_cuotas: string
+  unidad: string
+  base_calculo: BaseCalculoInteres | ''
+  fecha_inicio: string
+  fecha_fin: string
+  alcance: AlcanceTarifa
+  departamentos: string[]
+  observacion: string
+}
