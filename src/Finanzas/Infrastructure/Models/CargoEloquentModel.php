@@ -5,6 +5,7 @@ namespace Src\Finanzas\Infrastructure\Models;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Finanzas\Domain\Enums\EstadoCargo;
 use Src\Finanzas\Domain\Enums\OrigenCargo;
@@ -65,6 +66,12 @@ final class CargoEloquentModel extends Model
     public function lote(): BelongsTo
     {
         return $this->belongsTo(LoteGeneracionCargoEloquentModel::class, 'lote_generacion_id');
+    }
+
+    /** @return HasMany<AplicacionPagoEloquentModel, $this> */
+    public function aplicacionesPago(): HasMany
+    {
+        return $this->hasMany(AplicacionPagoEloquentModel::class, 'cargo_id');
     }
 
     protected function casts(): array

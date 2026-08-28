@@ -60,7 +60,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         $this->authorizedEdificio($userId, $edificioId);
         $cargo = CargoEloquentModel::query()
             ->where('edificio_id', $edificioId)
-            ->with(['departamento', 'concepto', 'tarifa', 'lote'])
+            ->with(['departamento', 'concepto', 'tarifa', 'lote', 'aplicacionesPago.pago'])
             ->findOrFail($cargoId);
 
         return $this->serializeCargo($cargo, true);
@@ -582,6 +582,13 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
             'anuladoAt' => $cargo->anulado_at?->toISOString(),
             'motivoAnulacion' => $cargo->motivo_anulacion,
             'snapshot' => $detail ? $cargo->metadata : null,
+            'aplicacionesPago' => $detail ? $cargo->aplicacionesPago->map(static fn (\Src\Finanzas\Infrastructure\Models\AplicacionPagoEloquentModel $aplicacion): array => [
+                'pagoId' => $aplicacion->pago_id,
+                'numeroPago' => $aplicacion->pago?->numero,
+                'fechaPago' => $aplicacion->pago?->fecha_pago?->format('Y-m-d'),
+                'valorAplicado' => $aplicacion->monto_aplicado,
+                'estadoPago' => $aplicacion->pago?->estado->value,
+            ])->all() : null,
         ];
     }
 

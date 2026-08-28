@@ -49,6 +49,16 @@ const links = [[{
   to: '/cargos',
   onSelect: () => navigateTo('/cargos')
 }, {
+  label: 'Pagos',
+  icon: 'i-lucide-hand-coins',
+  to: '/pagos',
+  onSelect: () => navigateTo('/pagos')
+}, {
+  label: 'Cartera',
+  icon: 'i-lucide-wallet-cards',
+  to: '/cartera',
+  onSelect: () => navigateTo('/cartera')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

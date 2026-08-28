@@ -73,7 +73,7 @@ Reglas implementadas:
 
 ## Finanzas: conceptos y tarifas
 
-El contexto `Finanzas` configura conceptos y tarifas, y ETAPA 6 los convierte en cargos; pagos, recibos y cartera permanecen fuera de alcance.
+El contexto `Finanzas` configura conceptos y tarifas, genera cargos y registra pagos; recibos definitivos y conciliación bancaria permanecen fuera de alcance.
 
 1. `conceptos_cobro` es un catálogo local al edificio y define tipo, periodicidad, forma de cálculo y estado administrativo.
 2. `tarifas_concepto` guarda valores monetarios, porcentajes y demás parámetros por intervalo temporal; una tarifa no se sobrescribe ni se elimina.
@@ -92,7 +92,7 @@ Reglas implementadas:
 
 ## Finanzas: cargos y lotes
 
-ETAPA 6 convierte configuraciones vigentes en cargos de departamento sin implementar pagos, recibos ni cartera.
+ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 aplica pagos sobre esos cargos y deriva cartera sin tablas editables de deuda.
 
 - `cargos` guarda una obligación concreta con saldo persistente, estados `pendiente`, `parcial`, `pagado` y `anulado`, y un snapshot de cálculo.
 - `lotes_generacion_cargos` audita cada ejecución, sus totales, omisiones y advertencias.
@@ -104,13 +104,25 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento sin impleme
 - La anulación no elimina, exige motivo y sólo admite saldos íntegros pendientes.
 - `finanzas:generar-cargos --periodo=YYYY-MM [--edificio=UUID] [--concepto=UUID] [--dry-run]` se ejecuta diariamente a las 01:10 con `withoutOverlapping`.
 
+## Finanzas: pagos y cartera
+
+- `pagos` conserva el valor recibido, departamento, snapshot de titulares, forma de pago, referencia, usuario y número global legible `PAG-AAAA-NNNNNN`.
+- `aplicaciones_pago` es inmutable y relaciona un pago con uno o varios cargos. Un cargo admite aplicaciones de varios pagos.
+- Sólo se almacenan los estados `registrado` y `anulado`. Aplicado, parcialmente aplicado y saldo a favor se derivan de las aplicaciones activas, evitando estados duplicados.
+- El registro y la aplicación usan una única transacción y bloquean edificio, departamento y cargos ordenados por vencimiento, emisión, creación e identificador.
+- Los pagos se aplican automáticamente a la deuda más antigua. El saldo no aplicado permanece como saldo a favor en el mismo pago y puede aplicarse después a nuevos cargos del departamento.
+- La anulación no elimina pagos ni aplicaciones: revierte los saldos y estados de los cargos, marca el pago anulado con motivo, usuario y fecha, y no puede repetirse.
+- PostgreSQL protege pagos y aplicaciones contra eliminación o edición destructiva, valida montos positivos, FKs compuestas entre edificio/departamento/cargo/pago y comprueba al commit la coherencia entre saldos de cargos y aplicaciones activas.
+- La cartera es una consulta derivada: saldo bruto de cargos no anulados, aplicaciones, saldo a favor y saldo neto. No existe una tabla de cartera editable.
+- El pago pertenece al departamento; un propietario único queda referenciado y todos los titulares vigentes quedan en el snapshot. La copropiedad no divide el pago.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas y propietarios implementados; residentes pendientes |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
-| Cuentas por cobrar | Conceptos, tarifas, cargos y lotes implementados; pagos, cartera, recibos y comprobantes pendientes |
+| Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, saldo a favor y cartera preliminar implementados; recibos y comprobantes pendientes |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |

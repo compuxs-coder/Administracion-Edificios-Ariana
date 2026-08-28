@@ -24,7 +24,7 @@ const cancel = () => router.patch(route('cargos.cancel', [props.cargo.edificioId
     <template #header>
       <UDashboardNavbar :title="`${cargo.departamento} · ${cargo.concepto}`">
         <template #leading><UDashboardSidebarCollapse /></template>
-        <template #right><UButton v-if="cargo.estado === 'pendiente'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" /></template>
+        <template #right><div class="flex gap-2"><UButton v-if="cargo.estado !== 'anulado' && cargo.saldo !== '0.0000'" icon="i-lucide-hand-coins" label="Registrar pago" variant="outline" @click="router.visit(route('pagos.create', { edificio_id: cargo.edificioId, departamento_id: cargo.departamentoId }))" /><UButton v-if="cargo.estado === 'pendiente'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" /></div></template>
       </UDashboardNavbar>
     </template>
     <template #body>
@@ -39,6 +39,12 @@ const cancel = () => router.patch(route('cargos.cancel', [props.cargo.edificioId
             <div><dt class="text-xs uppercase text-muted">Vencimiento</dt><dd class="mt-1">{{ cargo.fechaVencimiento }}</dd></div>
             <div><dt class="text-xs uppercase text-muted">Lote</dt><dd class="mt-1 font-mono text-sm">{{ cargo.loteId || 'Manual' }}</dd></div>
           </dl>
+        </UCard>
+        <UCard v-if="cargo.aplicacionesPago && cargo.aplicacionesPago.length">
+          <template #header><p class="font-semibold text-highlighted">Pagos aplicados</p></template>
+          <div class="divide-y divide-default">
+            <button v-for="aplicacion in cargo.aplicacionesPago" :key="`${aplicacion.pagoId}-${aplicacion.valorAplicado}`" class="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-elevated/30" type="button" @click="router.visit(route('pagos.show', [cargo.edificioId, aplicacion.pagoId]))"><div><p class="font-mono text-sm text-primary">{{ aplicacion.numeroPago }}</p><p class="text-xs text-muted">{{ aplicacion.fechaPago }} · {{ aplicacion.estadoPago }}</p></div><span class="font-mono">${{ aplicacion.valorAplicado }}</span></button>
+          </div>
         </UCard>
         <UCard>
           <template #header><p class="font-semibold text-highlighted">Trazabilidad</p></template>

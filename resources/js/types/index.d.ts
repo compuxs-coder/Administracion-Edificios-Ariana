@@ -306,6 +306,7 @@ export interface Cargo {
   anuladoAt: string | null
   motivoAnulacion: string | null
   snapshot: Record<string, unknown> | null
+  aplicacionesPago?: Array<{ pagoId: string, numeroPago: string | null, fechaPago: string | null, valorAplicado: string, estadoPago: EstadoPago | undefined }> | null
 }
 
 export interface CargoOption {
@@ -335,4 +336,69 @@ export interface CargoPreview {
   cantidadOmitidos: number
   totalValor: string
   advertencias: Array<{ codigo: string, mensaje: string, departamento?: string, concepto?: string }>
+}
+
+export type EstadoPago = 'registrado' | 'anulado'
+export type FormaPago = 'efectivo' | 'transferencia' | 'deposito' | 'tarjeta' | 'cheque' | 'otro'
+
+export interface PagoAplicacion {
+  id: string
+  cargoId: string
+  concepto: string | null
+  periodo: string | null
+  valorAplicado: string
+  createdAt: string | null
+}
+
+export interface Pago {
+  id: string
+  edificioId: string
+  departamentoId: string
+  departamento: string | null
+  propietarioId: string | null
+  propietario: string
+  numero: string
+  fechaPago: string
+  valorRecibido: string
+  valorAplicado: string
+  valorAplicadoHistorico: string
+  saldoFavor: string
+  formaPago: FormaPago
+  referencia: string | null
+  observacion: string | null
+  estado: EstadoPago
+  origen: string
+  registradoPor: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  saldoAnterior: string | null
+  saldoPosterior: string | null
+  propietarios?: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }> | null
+  aplicaciones?: PagoAplicacion[] | null
+}
+
+export interface PagoPreview {
+  departamento: { id: string, codigo: string, nombre: string }
+  propietarios: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }>
+  saldoPendiente: string
+  saldoFavorActual: string
+  saldoNetoActual: string
+  valorRecibido: string
+  valorAplicado: string
+  saldoFavorNuevo: string
+  saldoDespues: string
+  cargos: Array<{ cargoId: string, concepto: string, periodo: string, fechaVencimiento: string, saldoAnterior: string, valorAplicado: string, saldoPosterior: string }>
+}
+
+export interface CarteraItem {
+  edificioId: string
+  edificio: string | null
+  departamentoId: string
+  departamento: string
+  propietarios: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }>
+  cargosTotales: string
+  pagosAplicados: string
+  saldoPendiente: string
+  saldoFavor: string
+  saldoNeto: string
 }

@@ -178,7 +178,7 @@ No existen rutas de eliminación para propietarios o titularidades.
 
 ## Módulo Finanzas
 
-El contexto `src/Finanzas` configura conceptos, tarifas y cargos por edificio. Pagos, recibos, aplicación de pagos y cartera permanecen fuera de alcance.
+El contexto `src/Finanzas` configura conceptos, tarifas, cargos, pagos y cartera preliminar por edificio. Recibos definitivos y conciliación bancaria permanecen fuera de alcance.
 
 Tablas:
 
@@ -187,6 +187,10 @@ Tablas:
 - `tarifa_departamentos`: alcance histórico de tarifas aplicables a departamentos específicos.
 - `cargos`: obligación concreta, período mensual, fechas, valor original, saldo, estado, origen y snapshot de cálculo.
 - `lotes_generacion_cargos`: auditoría de generación masiva, contadores, total y advertencias.
+- `pagos`: valor recibido, número legible, forma de pago, referencia, usuario, estado y snapshot de titulares.
+- `aplicaciones_pago`: aplicación inmutable de un pago a uno o varios cargos.
+- `consecutivos_pago`: contador técnico bloqueado para asignar números de pago únicos sin usar `MAX() + 1`.
+- `pago_titulares`: snapshot relacional inmutable de titulares para historial y filtros de copropiedad, sin repartir el pago.
 
 Reglas de negocio:
 
@@ -205,6 +209,13 @@ Reglas de negocio:
 - El cargo pertenece al departamento. En copropiedad no divide deuda y conserva un snapshot de todos los titulares.
 - Edificio no tiene configuración de vencimiento: automático usa el último día del período y manual recibe fecha explícita.
 - Anular conserva el cargo, exige motivo y sólo permite saldo íntegro pendiente.
+- El pago se registra por departamento; el backend obtiene titulares y cargos, nunca acepta saldos ni propietario desde el frontend.
+- La aplicación automática es determinista: fecha de vencimiento, fecha de emisión, creación e identificador. Sólo usa cargos `pendiente` o `parcial` con saldo positivo.
+- Un pago puede cubrir varios cargos y un cargo puede recibir varios pagos. Los importes se calculan con BCMath y `numeric(14,4)`.
+- El excedente queda como saldo a favor derivado de `monto_recibido - aplicaciones` y puede aplicarse posteriormente, sin sobrescribir el pago original.
+- Un pago `registrado` puede anularse una única vez. La anulación conserva su historial, restaura cargos y exige motivo, fecha y usuario en una transacción.
+- `registrado` y `anulado` son los únicos estados persistidos; aplicado o parcialmente aplicado se derivan de las aplicaciones activas.
+- La cartera es una lectura derivada de cargos, aplicaciones y saldo a favor; no admite edición manual.
 
 Rutas principales:
 
@@ -224,6 +235,13 @@ GET    /cargos/create
 POST   /edificios/{edificio}/cargos
 GET    /edificios/{edificio}/cargos/{cargo}
 PATCH  /edificios/{edificio}/cargos/{cargo}/anular
+GET    /pagos
+GET    /pagos/create
+POST   /edificios/{edificio}/pagos
+GET    /edificios/{edificio}/pagos/{pago}
+POST   /edificios/{edificio}/pagos/{pago}/aplicar-saldo-favor
+PATCH  /edificios/{edificio}/pagos/{pago}/anular
+GET    /cartera
 ```
 
 El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crear cargos ni lotes. El scheduler lo ejecuta diariamente a las 01:10 y la idempotencia impide duplicación.

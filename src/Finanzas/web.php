@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Src\Finanzas\Application\Controllers\CargoWebController;
 use Src\Finanzas\Application\Controllers\ConceptoCobroWebController;
+use Src\Finanzas\Application\Controllers\PagoWebController;
 
 Route::middleware('auth')->group(function () {
     Route::get('cargos', [CargoWebController::class, 'index'])->name('cargos.index');
@@ -12,6 +13,13 @@ Route::middleware('auth')->group(function () {
     Route::post('edificios/{edificio}/cargos', [CargoWebController::class, 'storeManual'])->whereUuid('edificio')->name('cargos.store');
     Route::get('edificios/{edificio}/cargos/{cargo}', [CargoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('cargo')->name('cargos.show');
     Route::patch('edificios/{edificio}/cargos/{cargo}/anular', [CargoWebController::class, 'cancel'])->whereUuid('edificio')->whereUuid('cargo')->name('cargos.cancel');
+    Route::get('pagos', [PagoWebController::class, 'index'])->name('pagos.index');
+    Route::get('pagos/create', [PagoWebController::class, 'create'])->name('pagos.create');
+    Route::post('edificios/{edificio}/pagos', [PagoWebController::class, 'store'])->whereUuid('edificio')->name('pagos.store');
+    Route::get('edificios/{edificio}/pagos/{pago}', [PagoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.show');
+    Route::post('edificios/{edificio}/pagos/{pago}/aplicar-saldo-favor', [PagoWebController::class, 'applyCredit'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.apply-credit');
+    Route::patch('edificios/{edificio}/pagos/{pago}/anular', [PagoWebController::class, 'cancel'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.cancel');
+    Route::get('cartera', [PagoWebController::class, 'cartera'])->name('cartera.index');
     Route::get('conceptos', [ConceptoCobroWebController::class, 'index'])
         ->name('conceptos.index');
     Route::get('conceptos/create', [ConceptoCobroWebController::class, 'create'])
