@@ -16,6 +16,7 @@ use Src\Finanzas\Domain\Enums\AlcanceTarifa;
 use Src\Finanzas\Domain\Enums\BaseCalculoInteres;
 use Src\Finanzas\Domain\Enums\EstadoConceptoCobro;
 use Src\Finanzas\Domain\Enums\FormaCalculoCobro;
+use Src\Finanzas\Domain\Enums\PeriodicidadCobro;
 use Src\Finanzas\Domain\Enums\TipoConceptoCobro;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
 use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
@@ -105,6 +106,9 @@ final class EloquentTarifaConceptoRepository implements TarifaConceptoRepository
         if (($montoTotal === null) !== ($numeroCuotas === null)) {
             $errors['monto_total'] = 'Monto total y número de cuotas deben registrarse juntos.';
             $errors['numero_cuotas'] = 'Monto total y número de cuotas deben registrarse juntos.';
+        }
+        if ($numeroCuotas !== null && $numeroCuotas > 1 && in_array($concepto->periodicidad, [PeriodicidadCobro::UNICO, PeriodicidadCobro::MANUAL], true)) {
+            $errors['numero_cuotas'] = 'Una tarifa con varias cuotas requiere una periodicidad automática recurrente.';
         }
         if (in_array($concepto->forma_calculo, [
             FormaCalculoCobro::VALOR_FIJO,

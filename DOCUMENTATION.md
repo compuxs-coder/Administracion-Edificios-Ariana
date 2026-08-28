@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios y configuración de conceptos/tarifas son módulos funcionales. Residentes, cargos, pagos, gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios, finanzas y cargos son módulos funcionales. Residentes, pagos, gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -178,13 +178,15 @@ No existen rutas de eliminación para propietarios o titularidades.
 
 ## Módulo Finanzas
 
-El contexto `src/Finanzas` configura conceptos de cobro y sus tarifas históricas por edificio. No genera cargos mensuales, cuentas por cobrar, pagos, recibos ni cartera; esas capacidades consumirán esta configuración en una etapa posterior.
+El contexto `src/Finanzas` configura conceptos, tarifas y cargos por edificio. Pagos, recibos, aplicación de pagos y cartera permanecen fuera de alcance.
 
 Tablas:
 
 - `conceptos_cobro`: código único por edificio, nombre, tipo, periodicidad, forma de cálculo y estado.
 - `tarifas_concepto`: valores `numeric(14,4)`, porcentajes `numeric(9,6)`, configuración de consumo/interés/cuotas extraordinarias y vigencia.
 - `tarifa_departamentos`: alcance histórico de tarifas aplicables a departamentos específicos.
+- `cargos`: obligación concreta, período mensual, fechas, valor original, saldo, estado, origen y snapshot de cálculo.
+- `lotes_generacion_cargos`: auditoría de generación masiva, contadores, total y advertencias.
 
 Reglas de negocio:
 
@@ -197,6 +199,12 @@ Reglas de negocio:
 - Tipo, periodicidad y forma de cálculo no se modifican cuando el concepto ya tiene tarifas.
 - El alcance soporta todo el edificio o departamentos específicos. FKs compuestas y revalidación transaccional rechazan departamentos de otro edificio.
 - Los conceptos de consumo requieren unidad y precio por unidad. Los intereses requieren porcentaje y base de cálculo. Las tarifas extraordinarias pueden registrar monto total y número de cuotas.
+- Los cargos automáticos son únicos por edificio, departamento, concepto y período; reintentos registran omitidos en un lote y no duplican deuda.
+- Valor fijo usa la tarifa; por alícuota usa la base de tarifa y `departamento.alicuota` con BCMath. Consumo sin lectura, porcentaje sin base, concepto manual y valor cero se omiten con advertencia.
+- Todo el edificio incluye sólo departamentos activos; el alcance específico respeta `tarifa_departamentos` y sus FKs compuestas.
+- El cargo pertenece al departamento. En copropiedad no divide deuda y conserva un snapshot de todos los titulares.
+- Edificio no tiene configuración de vencimiento: automático usa el último día del período y manual recibe fecha explícita.
+- Anular conserva el cargo, exige motivo y sólo permite saldo íntegro pendiente.
 
 Rutas principales:
 
@@ -209,7 +217,16 @@ GET    /edificios/{edificio}/conceptos/{concepto}/edit
 PUT    /edificios/{edificio}/conceptos/{concepto}
 PATCH  /edificios/{edificio}/conceptos/{concepto}/estado
 POST   /edificios/{edificio}/conceptos/{concepto}/tarifas
+GET    /cargos
+GET    /cargos/generar
+POST   /edificios/{edificio}/cargos/generar
+GET    /cargos/create
+POST   /edificios/{edificio}/cargos
+GET    /edificios/{edificio}/cargos/{cargo}
+PATCH  /edificios/{edificio}/cargos/{cargo}/anular
 ```
+
+El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crear cargos ni lotes. El scheduler lo ejecuta diariamente a las 01:10 y la idempotencia impide duplicación.
 
 ## Módulos transitorios
 

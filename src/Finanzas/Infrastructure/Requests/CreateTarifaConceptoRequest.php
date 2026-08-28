@@ -10,6 +10,7 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Finanzas\Domain\Enums\AlcanceTarifa;
 use Src\Finanzas\Domain\Enums\BaseCalculoInteres;
 use Src\Finanzas\Domain\Enums\FormaCalculoCobro;
+use Src\Finanzas\Domain\Enums\PeriodicidadCobro;
 use Src\Finanzas\Domain\Enums\TipoConceptoCobro;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
 
@@ -83,6 +84,9 @@ final class CreateTarifaConceptoRequest extends FormRequest
             if (($this->input('monto_total') === null) !== ($this->input('numero_cuotas') === null)) {
                 $validator->errors()->add('monto_total', 'Monto total y número de cuotas deben registrarse juntos.');
                 $validator->errors()->add('numero_cuotas', 'Monto total y número de cuotas deben registrarse juntos.');
+            }
+            if ((int) $this->input('numero_cuotas') > 1 && in_array($concepto->periodicidad, [PeriodicidadCobro::UNICO, PeriodicidadCobro::MANUAL], true)) {
+                $validator->errors()->add('numero_cuotas', 'Una tarifa con varias cuotas requiere una periodicidad automática recurrente.');
             }
 
             $departamentos = $this->input('departamentos', []);

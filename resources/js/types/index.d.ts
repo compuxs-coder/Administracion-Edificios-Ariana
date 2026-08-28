@@ -280,3 +280,59 @@ export interface TarifaConceptoFormData {
   departamentos: string[]
   observacion: string
 }
+
+export type EstadoCargo = 'pendiente' | 'parcial' | 'pagado' | 'anulado'
+export type OrigenCargo = 'automatico' | 'manual' | 'importado' | 'ajuste'
+
+export interface Cargo {
+  id: string
+  edificioId: string
+  departamentoId: string
+  departamento: string | null
+  conceptoId: string
+  concepto: string | null
+  codigoConcepto: string | null
+  tarifaId: string | null
+  periodo: string
+  fechaEmision: string
+  fechaVencimiento: string
+  descripcion: string
+  valorOriginal: string
+  saldo: string
+  estado: EstadoCargo
+  origen: OrigenCargo
+  loteId: string | null
+  referenciaGeneracion: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  snapshot: Record<string, unknown> | null
+}
+
+export interface CargoOption {
+  id: string
+  edificioId: string
+  codigo: string
+  nombre: string
+  estado?: EstadoConceptoCobro
+}
+
+export interface CargoPreviewItem {
+  departamentoId: string
+  departamento: string
+  conceptoId: string
+  concepto: string
+  formaCalculo: FormaCalculoCobro
+  tarifaId: string
+  tarifa: string | null
+  base: string | null
+  valor: string
+}
+
+export interface CargoPreview {
+  periodo: string
+  cargos: CargoPreviewItem[]
+  cantidadCargos: number
+  cantidadOmitidos: number
+  totalValor: string
+  advertencias: Array<{ codigo: string, mensaje: string, departamento?: string, concepto?: string }>
+}

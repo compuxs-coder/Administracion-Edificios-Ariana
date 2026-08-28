@@ -1,0 +1,19 @@
+<script setup lang="ts">
+import { computed, reactive, ref } from 'vue'
+import { router } from '@inertiajs/vue3'
+import { route } from 'ziggy-js'
+import type { CargoOption } from '../../types'
+
+const props = defineProps<{ edificios: Array<{ id: string, nombre: string }>, conceptos: CargoOption[], departamentos: Array<{ id: string, edificioId: string, codigo: string, nombre: string }> }>()
+const today = (() => { const date = new Date(); return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-') })()
+const form = reactive({ edificio_id: props.edificios.length === 1 ? props.edificios[0]?.id ?? '' : '', departamento_id: '', concepto_cobro_id: '', periodo: today.slice(0, 7), fecha_emision: today, fecha_vencimiento: today, valor: '', descripcion: '' })
+const loading = ref(false)
+const errors = ref<Record<string, string>>({})
+const departments = computed(() => props.departamentos.filter(item => item.edificioId === form.edificio_id).map(item => ({ label: `${item.codigo} · ${item.nombre}`, value: item.id })))
+const concepts = computed(() => props.conceptos.filter(item => item.edificioId === form.edificio_id && item.estado === 'activo').map(item => ({ label: `${item.codigo} · ${item.nombre}`, value: item.id })))
+const submit = () => { if (!form.edificio_id) return; router.post(route('cargos.store', form.edificio_id), form, { onStart: () => { loading.value = true }, onError: responseErrors => { errors.value = responseErrors }, onFinish: () => { loading.value = false } }) }
+</script>
+
+<template>
+  <UDashboardPanel id="cargos-create"><template #header><UDashboardNavbar title="Nuevo cargo manual"><template #leading><UDashboardSidebarCollapse /></template></UDashboardNavbar></template><template #body><div class="mx-auto w-full max-w-3xl p-4 sm:p-6"><form class="space-y-6" @submit.prevent="submit"><UAlert color="info" description="El cargo manual no se incluye en la idempotencia automática y queda marcado con origen manual." icon="i-lucide-info" variant="subtle" /><div class="grid gap-4 md:grid-cols-2"><UFormField label="Edificio" required :error="errors.edificioId"><USelect v-model="form.edificio_id" :items="edificios.map(item => ({ label: item.nombre, value: item.id }))" required size="xl" @update:model-value="form.departamento_id = ''; form.concepto_cobro_id = ''" /></UFormField><UFormField label="Departamento" required :error="errors.departamentoId"><USelect v-model="form.departamento_id" :items="departments" placeholder="Seleccione departamento" required size="xl" /></UFormField><UFormField label="Concepto" required :error="errors.conceptoCobroId"><USelect v-model="form.concepto_cobro_id" :items="concepts" placeholder="Seleccione concepto" required size="xl" /></UFormField><UFormField label="Período" required :error="errors.periodo"><UInput v-model="form.periodo" type="month" required size="xl" /></UFormField><UFormField label="Fecha emisión" required :error="errors.fechaEmision"><UInput v-model="form.fecha_emision" type="date" required size="xl" /></UFormField><UFormField label="Fecha vencimiento" required :error="errors.fechaVencimiento"><UInput v-model="form.fecha_vencimiento" type="date" :min="form.fecha_emision" required size="xl" /></UFormField><UFormField label="Valor" required :error="errors.valor"><UInput v-model="form.valor" inputmode="decimal" placeholder="0.0000" required size="xl" /></UFormField></div><UFormField label="Descripción" hint="Opcional" :error="errors.descripcion"><UTextarea v-model="form.descripcion" :rows="3" /></UFormField><div class="flex justify-end gap-3 border-t border-default pt-5"><UButton color="neutral" label="Cancelar" variant="outline" :disabled="loading" @click="router.visit(route('cargos.index'))" /><UButton icon="i-lucide-save" label="Crear cargo" type="submit" :loading="loading" /></div></form></div></template></UDashboardPanel>
+</template>

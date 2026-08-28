@@ -17,6 +17,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Aislamiento de propietarios por edificios administrados, sin convertirlos en usuarios o roles.
 - Configuración financiera de conceptos de cobro, tarifas históricas, vigencias y alcance por edificio o departamento.
 - Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric`, porcentajes y cálculo por alícuota preparados para cargos futuros.
+- Generación y previsualización de cargos por período, lotes auditables, idempotencia, snapshots y anulación sin eliminación física.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.

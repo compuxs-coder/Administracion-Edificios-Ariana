@@ -73,7 +73,7 @@ Reglas implementadas:
 
 ## Finanzas: conceptos y tarifas
 
-El contexto `Finanzas` configura qué se cobrará posteriormente; no emite cargos, cuentas por cobrar, pagos ni saldos.
+El contexto `Finanzas` configura conceptos y tarifas, y ETAPA 6 los convierte en cargos; pagos, recibos y cartera permanecen fuera de alcance.
 
 1. `conceptos_cobro` es un catálogo local al edificio y define tipo, periodicidad, forma de cálculo y estado administrativo.
 2. `tarifas_concepto` guarda valores monetarios, porcentajes y demás parámetros por intervalo temporal; una tarifa no se sobrescribe ni se elimina.
@@ -90,13 +90,27 @@ Reglas implementadas:
 - La tabla de alcance es independiente de la tarifa, por lo que una extensión posterior puede añadir torre o piso sin reescribir tarifas históricas.
 - Consumo requiere forma `por_consumo` y unidad; interés requiere porcentaje y base de cálculo; las cuotas extraordinarias admiten monto total y número de cuotas.
 
+## Finanzas: cargos y lotes
+
+ETAPA 6 convierte configuraciones vigentes en cargos de departamento sin implementar pagos, recibos ni cartera.
+
+- `cargos` guarda una obligación concreta con saldo persistente, estados `pendiente`, `parcial`, `pagado` y `anulado`, y un snapshot de cálculo.
+- `lotes_generacion_cargos` audita cada ejecución, sus totales, omisiones y advertencias.
+- El período usa un `date` normalizado al primer día del mes y se presenta como `YYYY-MM`.
+- Edificio no dispone de fecha de corte o vencimiento. La generación automática emite el primer día del período y vence el último; el cargo manual permite override explícito.
+- Los cargos automáticos son idempotentes por edificio, departamento, concepto y período mediante transacción e índice parcial PostgreSQL.
+- Valor fijo y por alícuota se calculan con BCMath y `numeric`; porcentaje sin base legítima, consumo sin lectura y valor cero se omiten con advertencia.
+- El cargo pertenece al departamento. Guarda propietario sólo si existe un titular único y congela titulares, tarifa, alícuota y parámetros en metadata.
+- La anulación no elimina, exige motivo y sólo admite saldos íntegros pendientes.
+- `finanzas:generar-cargos --periodo=YYYY-MM [--edificio=UUID] [--concepto=UUID] [--dry-run]` se ejecuta diariamente a las 01:10 con `withoutOverlapping`.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas y propietarios implementados; residentes pendientes |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
-| Cuentas por cobrar | Configuración de conceptos y tarifas implementada; cargos, pagos, saldos y comprobantes pendientes |
+| Cuentas por cobrar | Conceptos, tarifas, cargos y lotes implementados; pagos, cartera, recibos y comprobantes pendientes |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
@@ -108,7 +122,7 @@ Reglas implementadas:
 - Definir roles y permisos específicos dentro de cada edificio.
 - Definir identidad reutilizable para residentes, inquilinos y proveedores sin acoplarla a autenticación.
 - Definir vigencia e historial de ocupación.
-- Definir reglas de generación de cargos que consumen la alícuota y si su suma debe exigirse en 100%.
+- Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
 - Definir si comprobante significa recibo emitido, evidencia de pago o ambos.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 

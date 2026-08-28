@@ -1,9 +1,17 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Src\Finanzas\Application\Controllers\CargoWebController;
 use Src\Finanzas\Application\Controllers\ConceptoCobroWebController;
 
 Route::middleware('auth')->group(function () {
+    Route::get('cargos', [CargoWebController::class, 'index'])->name('cargos.index');
+    Route::get('cargos/generar', [CargoWebController::class, 'generate'])->name('cargos.generate');
+    Route::get('cargos/create', [CargoWebController::class, 'create'])->name('cargos.create');
+    Route::post('edificios/{edificio}/cargos/generar', [CargoWebController::class, 'storeGeneration'])->whereUuid('edificio')->name('cargos.generate.store');
+    Route::post('edificios/{edificio}/cargos', [CargoWebController::class, 'storeManual'])->whereUuid('edificio')->name('cargos.store');
+    Route::get('edificios/{edificio}/cargos/{cargo}', [CargoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('cargo')->name('cargos.show');
+    Route::patch('edificios/{edificio}/cargos/{cargo}/anular', [CargoWebController::class, 'cancel'])->whereUuid('edificio')->whereUuid('cargo')->name('cargos.cancel');
     Route::get('conceptos', [ConceptoCobroWebController::class, 'index'])
         ->name('conceptos.index');
     Route::get('conceptos/create', [ConceptoCobroWebController::class, 'create'])

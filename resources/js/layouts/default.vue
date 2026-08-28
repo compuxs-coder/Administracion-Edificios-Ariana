@@ -44,6 +44,11 @@ const links = [[{
   to: '/conceptos',
   onSelect: () => navigateTo('/conceptos')
 }, {
+  label: 'Cargos',
+  icon: 'i-lucide-receipt-text',
+  to: '/cargos',
+  onSelect: () => navigateTo('/cargos')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',
