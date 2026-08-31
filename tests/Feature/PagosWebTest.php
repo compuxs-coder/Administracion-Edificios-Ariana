@@ -146,6 +146,49 @@ final class PagosWebTest extends TestCase
             ->where('pagos.data.0.propietario', 'Ana Pago, Bruno Pago'));
     }
 
+    public function test_cartera_separates_overdue_balances_and_statement_has_initial_and_running_balance(): void
+    {
+        [$user, $edificio, $departamentos, $concepto] = $this->fixture();
+        $this->cargo($edificio, $departamentos[0], $concepto, '100.0000', '2026-01-31');
+        $this->actingAs($user)->post(route('pagos.store', $edificio), $this->paymentData($departamentos[0], ['valor_recibido' => '40.0000']))->assertSessionHasNoErrors();
+
+        $this->actingAs($user)->get(route('cartera.index', ['fecha' => '2026-02-15', 'situacion' => 'vencidos']))->assertInertia(fn (Assert $page) => $page
+            ->where('cartera.summary.saldoVencido', '60.0000')
+            ->where('cartera.data.0.estado', 'moroso')
+            ->where('cartera.data.0.diasAtraso', 15));
+        $this->actingAs($user)->get(route('cartera.show', ['edificio' => $edificio, 'departamento' => $departamentos[0], 'fecha_desde' => '2026-02-01', 'fecha_hasta' => '2026-02-28']))->assertInertia(fn (Assert $page) => $page
+            ->component('Cartera/show')
+            ->where('estadoCuenta.saldoInicial.neto', '100.0000')
+            ->where('estadoCuenta.movimientos.0.credito', '40.0000')
+            ->where('estadoCuenta.movimientos.0.saldoAcumulado', '60.0000')
+            ->where('estadoCuenta.saldoFinal.neto', '60.0000'));
+    }
+
+    public function test_cartera_paginates_filters_age_in_backend_and_dashboard_uses_its_summary(): void
+    {
+        [$user, $edificio, $departamentos, $concepto] = $this->fixture(4);
+        $this->cargo($edificio, $departamentos[0], $concepto, '30.0000', '2026-03-16');
+        $this->cargo($edificio, $departamentos[1], $concepto, '40.0000', '2026-02-15');
+        $this->cargo($edificio, $departamentos[2], $concepto, '50.0000', '2026-01-20');
+        $this->cargo($edificio, $departamentos[3], $concepto, '60.0000', '2026-01-10');
+
+        $this->actingAs($user)->get(route('cartera.index', ['fecha' => '2026-04-15', 'antiguedad' => '31_a_60', 'per_page' => 1]))->assertInertia(fn (Assert $page) => $page
+            ->where('cartera.meta.total', 1)
+            ->where('cartera.meta.perPage', 1)
+            ->where('cartera.data.0.departamentoId', $departamentos[1]->id)
+            ->where('cartera.data.0.antiguedad', '31_a_60'));
+        foreach (['1_a_30' => 0, '61_a_90' => 2, 'mas_de_90' => 3] as $bucket => $index) {
+            $this->actingAs($user)->get(route('cartera.index', ['fecha' => '2026-04-15', 'antiguedad' => $bucket]))->assertInertia(fn (Assert $page) => $page
+                ->where('cartera.meta.total', 1)
+                ->where('cartera.data.0.departamentoId', $departamentos[$index]->id)
+                ->where('cartera.data.0.antiguedad', $bucket));
+        }
+        $this->actingAs($user)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('cartera.saldoPendiente', '180.0000')
+            ->where('cartera.saldoVencido', '180.0000')
+            ->where('cartera.departamentosConDeuda', 4));
+    }
+
     public function test_failed_application_rolls_back_the_payment_and_cargo_mutation(): void
     {
         [$user, $edificio, $departamentos, $concepto] = $this->fixture();
@@ -189,9 +232,9 @@ final class PagosWebTest extends TestCase
 
         $this->actingAs($owner)->get(route('cartera.index'))->assertInertia(fn (Assert $page) => $page
             ->component('Cartera/index')
-            ->has('cartera.items', 1)
-            ->where('cartera.items.0.departamentoId', $departamentos[0]->id)
-            ->where('cartera.items.0.saldoPendiente', '80.0000'));
+            ->has('cartera.data', 1)
+            ->where('cartera.data.0.departamentoId', $departamentos[0]->id)
+            ->where('cartera.data.0.saldoPendiente', '80.0000'));
     }
 
     /** @return array{UserEloquentModel, EdificioEloquentModel, list<DepartamentoEloquentModel>, ConceptoCobroEloquentModel} */

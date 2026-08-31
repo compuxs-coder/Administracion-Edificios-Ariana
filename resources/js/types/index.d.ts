@@ -402,3 +402,59 @@ export interface CarteraItem {
   saldoFavor: string
   saldoNeto: string
 }
+
+export interface CarteraResumen {
+  totalCartera: string
+  pagosAplicados: string
+  saldoPendiente: string
+  saldoVencido: string
+  saldoNoVencido: string
+  saldoFavor: string
+  saldoNeto: string
+  departamentosAlDia: number
+  departamentosConDeuda: number
+  morosidadPorcentaje: string
+}
+
+export interface CarteraDetalleItem extends CarteraItem {
+  torre: string | null
+  piso: string | null
+  nombreDepartamento: string
+  estadoDepartamento: EstadoEstructura
+  saldoVencido: string
+  saldoNoVencido: string
+  saldoNetoDeudor: string
+  saldoNetoAcreedor: string
+  fechaVencimientoMasAntigua: string | null
+  diasAtraso: number
+  antiguedad: 'al_dia' | '1_a_30' | '31_a_60' | '61_a_90' | 'mas_de_90'
+  estado: 'al_dia' | 'moroso' | 'saldo_a_favor'
+  ultimoPago: string | null
+  ultimaGestionCobro: null
+}
+
+export interface EstadoCuentaMovimiento {
+  id: string
+  fecha: string
+  tipo: 'cargo' | 'pago' | 'anulacion_cargo' | 'anulacion_pago'
+  referencia: string
+  debito: string
+  credito: string
+  saldoAcumulado: string
+  cargoId?: string
+  pagoId?: string
+  concepto?: string | null
+  periodo?: string | null
+  aplicaciones?: Array<{ cargoId: string, concepto: string | null, periodo: string | null, montoAplicado: string }>
+}
+
+export interface EstadoCuenta {
+  edificio: { id: string, nombre: string | null }
+  departamento: { id: string, codigo: string, nombre: string, estado: EstadoEstructura }
+  periodo: { desde: string, hasta: string }
+  propietarios: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }>
+  saldoInicial: { neto: string, deudor: string, acreedor: string }
+  saldoFinal: { neto: string, deudor: string, acreedor: string }
+  resumen: { debitos: string, creditos: string }
+  movimientos: EstadoCuentaMovimiento[]
+}

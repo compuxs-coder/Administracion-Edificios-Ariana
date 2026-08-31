@@ -19,6 +19,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric`, porcentajes y cálculo por alícuota.
 - Generación y previsualización de cargos por período, lotes auditables, idempotencia, snapshots y anulación sin eliminación física.
 - Registro de pagos con aplicación automática por antigüedad, pagos parciales, saldo a favor reutilizable, anulación trazable y cartera preliminar derivada.
+- Cartera paginada y estados de cuenta reconstruibles con saldo vencido/no vencido, antigüedad, KPIs y movimientos financieros cronológicos.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.

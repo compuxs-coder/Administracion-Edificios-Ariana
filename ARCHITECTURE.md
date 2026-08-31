@@ -116,6 +116,15 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 - La cartera es una consulta derivada: saldo bruto de cargos no anulados, aplicaciones, saldo a favor y saldo neto. No existe una tabla de cartera editable.
 - El pago pertenece al departamento; un propietario único queda referenciado y todos los titulares vigentes quedan en el snapshot. La copropiedad no divide el pago.
 
+## Finanzas: cartera y estado de cuenta
+
+- ETAPA 8 usa un read repository reconstruible desde cargos, pagos, aplicaciones y titulares; no existe una tabla editable de cartera ni saldos materializados.
+- Saldo bruto es la suma de `cargos.saldo` no anulados. Saldo vencido considera únicamente esos saldos con vencimiento anterior a la fecha de consulta; saldo no vencido es la diferencia.
+- Saldo a favor es el remanente de pagos registrados sin aplicación. Saldo neto se presenta firmado y también separado entre posición deudora y acreedora para no compensar departamentos distintos.
+- `al_dia` significa saldo vencido cero, incluso con cargos futuros. `moroso` requiere saldo vencido positivo. La antigüedad se deriva del vencimiento pendiente más antiguo; no genera intereses.
+- Los KPIs se calculan antes de paginar. Morosidad es departamentos con saldo vencido dividido por departamentos incluidos en el filtro.
+- El estado de cuenta es cronológico y contable: cargo es débito, pago es crédito y cada anulación revierte su documento. Las aplicaciones se muestran como trazabilidad del pago y no se suman otra vez.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |

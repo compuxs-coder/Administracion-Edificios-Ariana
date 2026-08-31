@@ -216,6 +216,9 @@ Reglas de negocio:
 - Un pago `registrado` puede anularse una única vez. La anulación conserva su historial, restaura cargos y exige motivo, fecha y usuario en una transacción.
 - `registrado` y `anulado` son los únicos estados persistidos; aplicado o parcialmente aplicado se derivan de las aplicaciones activas.
 - La cartera es una lectura derivada de cargos, aplicaciones y saldo a favor; no admite edición manual.
+- La cartera paginada calcula saldo bruto, vencido, no vencido, saldo a favor y saldo neto en backend. Sus estados son derivados: `al_dia`, `moroso` y `saldo_a_favor`.
+- Los buckets de antigüedad son 1–30, 31–60, 61–90 y más de 90 días desde el vencimiento pendiente más antiguo.
+- El estado de cuenta de departamento usa saldo inicial anterior al rango y movimientos de cargos, pagos y anulaciones. Las aplicaciones se adjuntan al pago sin duplicar débitos o créditos.
 
 Rutas principales:
 
@@ -242,6 +245,7 @@ GET    /edificios/{edificio}/pagos/{pago}
 POST   /edificios/{edificio}/pagos/{pago}/aplicar-saldo-favor
 PATCH  /edificios/{edificio}/pagos/{pago}/anular
 GET    /cartera
+GET    /edificios/{edificio}/departamentos/{departamento}/estado-cuenta
 ```
 
 El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crear cargos ni lotes. El scheduler lo ejecuta diariamente a las 01:10 y la idempotencia impide duplicación.
