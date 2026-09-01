@@ -6,6 +6,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Finanzas\Domain\Enums\EstadoPago;
@@ -67,6 +68,18 @@ final class PagoEloquentModel extends Model
     public function titulares(): HasMany
     {
         return $this->hasMany(PagoTitularEloquentModel::class, 'pago_id');
+    }
+
+    /** @return HasOne<ReciboPagoEloquentModel, $this> */
+    public function recibo(): HasOne
+    {
+        return $this->hasOne(ReciboPagoEloquentModel::class, 'pago_id');
+    }
+
+    /** @return HasMany<EvidenciaPagoEloquentModel, $this> */
+    public function evidencias(): HasMany
+    {
+        return $this->hasMany(EvidenciaPagoEloquentModel::class, 'pago_id');
     }
 
     protected function casts(): array

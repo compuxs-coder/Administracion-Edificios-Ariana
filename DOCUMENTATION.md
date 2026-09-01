@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios, finanzas y cargos son módulos funcionales. Residentes, pagos, gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Residentes, gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -178,7 +178,7 @@ No existen rutas de eliminación para propietarios o titularidades.
 
 ## Módulo Finanzas
 
-El contexto `src/Finanzas` configura conceptos, tarifas, cargos, pagos y cartera preliminar por edificio. Recibos definitivos y conciliación bancaria permanecen fuera de alcance.
+El contexto `src/Finanzas` configura conceptos, tarifas, cargos, pagos, cartera, recibos y evidencias por edificio. La conciliación bancaria permanece fuera de alcance.
 
 Tablas:
 
@@ -191,6 +191,9 @@ Tablas:
 - `aplicaciones_pago`: aplicación inmutable de un pago a uno o varios cargos.
 - `consecutivos_pago`: contador técnico bloqueado para asignar números de pago únicos sin usar `MAX() + 1`.
 - `pago_titulares`: snapshot relacional inmutable de titulares para historial y filtros de copropiedad, sin repartir el pago.
+- `consecutivos_recibo`: contador técnico global bloqueado por año para recibos.
+- `recibos_pago`: recibo único, inmutable y trazable de un pago, con snapshots de emisión.
+- `evidencias_pago`: archivos privados inmutables adjuntos a un pago.
 
 Reglas de negocio:
 
@@ -219,6 +222,9 @@ Reglas de negocio:
 - La cartera paginada calcula saldo bruto, vencido, no vencido, saldo a favor y saldo neto en backend. Sus estados son derivados: `al_dia`, `moroso` y `saldo_a_favor`.
 - Los buckets de antigüedad son 1–30, 31–60, 61–90 y más de 90 días desde el vencimiento pendiente más antiguo.
 - El estado de cuenta de departamento usa saldo inicial anterior al rango y movimientos de cargos, pagos y anulaciones. Las aplicaciones se adjuntan al pago sin duplicar débitos o créditos.
+- Registrar un pago emite un único recibo en la misma transacción. Su número es global `REC-AAAA-NNNNNN` y el consecutivo se reinicia únicamente al cambiar de año.
+- El recibo guarda snapshots del pago y de su aplicación inicial; una aplicación posterior de saldo a favor no lo altera. Anular el pago anula el recibo con usuario, fecha y motivo, sin eliminar registros.
+- Las evidencias son PDF, JPG o PNG de hasta 10 MB, se almacenan en el disco privado no servible `evidence`, validan estructura y SHA-256, sólo se aceptan para pagos registrados y se descargan tras validar acceso al edificio.
 
 Rutas principales:
 
@@ -244,6 +250,9 @@ POST   /edificios/{edificio}/pagos
 GET    /edificios/{edificio}/pagos/{pago}
 POST   /edificios/{edificio}/pagos/{pago}/aplicar-saldo-favor
 PATCH  /edificios/{edificio}/pagos/{pago}/anular
+GET    /edificios/{edificio}/pagos/{pago}/recibo
+POST   /edificios/{edificio}/pagos/{pago}/evidencias
+GET    /edificios/{edificio}/pagos/{pago}/evidencias/{evidencia}
 GET    /cartera
 GET    /edificios/{edificio}/departamentos/{departamento}/estado-cuenta
 ```

@@ -373,8 +373,30 @@ export interface Pago {
   motivoAnulacion: string | null
   saldoAnterior: string | null
   saldoPosterior: string | null
+  recibo: { id: string, numero: string, estado: 'emitido' | 'anulado' } | null
   propietarios?: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }> | null
   aplicaciones?: PagoAplicacion[] | null
+}
+
+export interface ReciboPago {
+  id: string
+  numero: string
+  estado: 'emitido' | 'anulado'
+  fechaEmision: string | null
+  fechaPago: string
+  edificio: { id: string, nombre: string }
+  departamento: { id: string, codigo: string, nombre: string }
+  pago: { id: string, numero: string | null, estado: EstadoPago | null }
+  titulares: Array<{ id: string, nombre: string, identificacion: string, porcentaje: string }>
+  valorRecibido: string
+  formaPago: string
+  referencia: string | null
+  aplicaciones: Array<{ cargoId: string, concepto: string, periodo: string, fechaVencimiento: string, saldoAnterior: string | null, valorAplicado: string, saldoPosterior: string | null }>
+  emitidoPor: string | null
+  anuladoAt: string | null
+  anuladoPor: string | null
+  motivoAnulacion: string | null
+  evidencias: Array<{ id: string, nombre: string, mimeType: string, tamanoBytes: number, descripcion: string | null, subidoAt: string | null, subidoPor: string | null }>
 }
 
 export interface PagoPreview {

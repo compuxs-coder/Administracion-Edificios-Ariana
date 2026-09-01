@@ -5,6 +5,7 @@ use Src\Finanzas\Application\Controllers\CargoWebController;
 use Src\Finanzas\Application\Controllers\CarteraWebController;
 use Src\Finanzas\Application\Controllers\ConceptoCobroWebController;
 use Src\Finanzas\Application\Controllers\PagoWebController;
+use Src\Finanzas\Application\Controllers\ReciboPagoWebController;
 
 Route::middleware('auth')->group(function () {
     Route::get('cargos', [CargoWebController::class, 'index'])->name('cargos.index');
@@ -20,6 +21,9 @@ Route::middleware('auth')->group(function () {
     Route::get('edificios/{edificio}/pagos/{pago}', [PagoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.show');
     Route::post('edificios/{edificio}/pagos/{pago}/aplicar-saldo-favor', [PagoWebController::class, 'applyCredit'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.apply-credit');
     Route::patch('edificios/{edificio}/pagos/{pago}/anular', [PagoWebController::class, 'cancel'])->whereUuid('edificio')->whereUuid('pago')->name('pagos.cancel');
+    Route::get('edificios/{edificio}/pagos/{pago}/recibo', [ReciboPagoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('pago')->name('recibos.show');
+    Route::post('edificios/{edificio}/pagos/{pago}/evidencias', [ReciboPagoWebController::class, 'storeEvidence'])->middleware('throttle:20,1')->whereUuid('edificio')->whereUuid('pago')->name('evidencias.store');
+    Route::get('edificios/{edificio}/pagos/{pago}/evidencias/{evidencia}', [ReciboPagoWebController::class, 'downloadEvidence'])->whereUuid('edificio')->whereUuid('pago')->whereUuid('evidencia')->name('evidencias.download');
     Route::get('cartera', [CarteraWebController::class, 'index'])->name('cartera.index');
     Route::get('edificios/{edificio}/departamentos/{departamento}/estado-cuenta', [CarteraWebController::class, 'show'])->whereUuid('edificio')->whereUuid('departamento')->name('cartera.show');
     Route::get('conceptos', [ConceptoCobroWebController::class, 'index'])

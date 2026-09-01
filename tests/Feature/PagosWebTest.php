@@ -212,6 +212,7 @@ final class PagosWebTest extends TestCase
         $cargo->refresh();
         $this->assertDatabaseCount('pagos', 0);
         $this->assertDatabaseCount('aplicaciones_pago', 0);
+        $this->assertDatabaseCount('recibos_pago', 0);
         $this->assertSame('100.0000', $cargo->saldo);
         $this->assertSame(EstadoCargo::PENDIENTE, $cargo->estado);
     }

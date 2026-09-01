@@ -18,7 +18,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Configuración financiera de conceptos de cobro, tarifas históricas, vigencias y alcance por edificio o departamento.
 - Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric`, porcentajes y cálculo por alícuota.
 - Generación y previsualización de cargos por período, lotes auditables, idempotencia, snapshots y anulación sin eliminación física.
-- Registro de pagos con aplicación automática por antigüedad, pagos parciales, saldo a favor reutilizable, anulación trazable y cartera preliminar derivada.
+- Registro de pagos con aplicación automática por antigüedad, pagos parciales, saldo a favor reutilizable, anulación trazable, recibos inmutables con consecutivo global anual y evidencias privadas PDF/JPG/PNG.
 - Cartera paginada y estados de cuenta reconstruibles con saldo vencido/no vencido, antigüedad, KPIs y movimientos financieros cronológicos.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.

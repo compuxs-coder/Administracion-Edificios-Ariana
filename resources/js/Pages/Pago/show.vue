@@ -27,8 +27,9 @@ const applyCredit = () => router.post(route('pagos.apply-credit', [props.pago.ed
       <UDashboardNavbar :title="pago.numero">
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
-          <div class="flex gap-2">
-            <UButton v-if="pago.estado === 'registrado' && pago.saldoFavor !== '0.0000'" icon="i-lucide-scan-line" label="Aplicar saldo a favor" variant="outline" @click="applyCredit" />
+            <div class="flex gap-2">
+              <UButton v-if="pago.recibo" icon="i-lucide-receipt-text" label="Ver recibo" variant="outline" @click="router.visit(route('recibos.show', [pago.edificioId, pago.id]))" />
+              <UButton v-if="pago.estado === 'registrado' && pago.saldoFavor !== '0.0000'" icon="i-lucide-scan-line" label="Aplicar saldo a favor" variant="outline" @click="applyCredit" />
             <UButton v-if="pago.estado === 'registrado'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" />
           </div>
         </template>
@@ -54,7 +55,8 @@ const applyCredit = () => router.post(route('pagos.apply-credit', [props.pago.ed
             <div><dt class="text-xs uppercase text-muted">Aplicado</dt><dd class="mt-1 font-mono">${{ pago.valorAplicado }}</dd></div>
             <div><dt class="text-xs uppercase text-muted">Saldo a favor</dt><dd class="mt-1 font-mono">${{ pago.saldoFavor }}</dd></div>
             <div><dt class="text-xs uppercase text-muted">Referencia</dt><dd class="mt-1">{{ pago.referencia || '—' }}</dd></div>
-            <div><dt class="text-xs uppercase text-muted">Registrado por</dt><dd class="mt-1">{{ pago.registradoPor || 'Usuario eliminado' }}</dd></div>
+             <div><dt class="text-xs uppercase text-muted">Registrado por</dt><dd class="mt-1">{{ pago.registradoPor || 'Usuario eliminado' }}</dd></div>
+             <div><dt class="text-xs uppercase text-muted">Recibo</dt><dd class="mt-1">{{ pago.recibo?.numero || 'No disponible para pagos históricos' }}</dd></div>
           </dl>
           <UAlert v-if="pago.estado === 'anulado'" class="mt-5" color="neutral" :description="pago.motivoAnulacion || 'Sin motivo registrado.'" icon="i-lucide-ban" variant="subtle" />
         </UCard>

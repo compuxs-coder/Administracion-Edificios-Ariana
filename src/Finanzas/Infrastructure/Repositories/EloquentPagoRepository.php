@@ -12,11 +12,13 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Finanzas\Domain\Contracts\PagoRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoCargo;
 use Src\Finanzas\Domain\Enums\EstadoPago;
+use Src\Finanzas\Domain\Enums\EstadoReciboPago;
 use Src\Finanzas\Domain\Enums\FormaPago;
 use Src\Finanzas\Domain\Enums\OrigenPago;
 use Src\Finanzas\Infrastructure\Models\AplicacionPagoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\CargoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\PagoEloquentModel;
+use Src\Finanzas\Infrastructure\Models\ReciboPagoEloquentModel;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 
@@ -26,7 +28,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
     {
         $query = PagoEloquentModel::query()
             ->whereHas('departamento.edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
-            ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones'])
+            ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones', 'recibo'])
             ->orderByDesc('fecha_pago')
             ->orderByDesc('numero');
         foreach (['edificio_id', 'departamento_id', 'forma_pago', 'estado'] as $field) {
@@ -60,7 +62,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         $this->authorizedEdificio($userId, $edificioId);
         $pago = PagoEloquentModel::query()
             ->where('edificio_id', $edificioId)
-            ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones.cargo.concepto'])
+            ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones.cargo.concepto', 'recibo'])
             ->findOrFail($pagoId);
 
         return $this->serializePago($pago, true);
@@ -134,7 +136,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         }
 
         return DB::transaction(function () use ($userId, $edificioId, $data, $fechaPago, $monto, $formaPago): array {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $edificio = $this->authorizedEdificio($userId, $edificioId, true);
             $departamento = $this->departamento($edificioId, (string) ($data['departamento_id'] ?? ''), true);
             $owners = $this->owners($departamento->id, $fechaPago);
             $cargos = $this->pendingCargos($edificioId, $departamento->id, true);
@@ -174,6 +176,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
             }
 
             $this->persistPlan($pago, $cargos, $plan['items']);
+            $this->issueReceipt($pago, $edificio, $departamento, $owners, $plan['items'], $userId);
 
             return ['id' => $pago->id];
         });
@@ -234,11 +237,23 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
                 }
                 $cargo->fill(['saldo' => $nuevoSaldo, 'estado' => $this->cargoState($cargo->valor_original, $nuevoSaldo)])->save();
             }
+            $recibo = ReciboPagoEloquentModel::query()->where('pago_id', $pago->id)->lockForUpdate()->first();
+            if ($recibo === null || $recibo->estado !== EstadoReciboPago::EMITIDO) {
+                throw ValidationException::withMessages(['recibo' => 'El pago no tiene un recibo emitido válido para anular.']);
+            }
+            $anuladoAt = CarbonImmutable::now();
+            $motivo = trim($motivo);
             $pago->fill([
                 'estado' => EstadoPago::ANULADO,
                 'anulado_por' => $userId,
-                'anulado_at' => CarbonImmutable::now(),
-                'motivo_anulacion' => trim($motivo),
+                'anulado_at' => $anuladoAt,
+                'motivo_anulacion' => $motivo,
+            ])->save();
+            $recibo->fill([
+                'estado' => EstadoReciboPago::ANULADO,
+                'anulado_por' => $userId,
+                'anulado_at' => $anuladoAt,
+                'motivo_anulacion' => $motivo,
             ])->save();
         });
     }
@@ -441,6 +456,45 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         return sprintf('PAG-%s-%06d', $fechaPago->format('Y'), $numero);
     }
 
+    /** @param Collection<int, array{id: string, nombre: string, identificacion: string, porcentaje: string}> $owners @param list<array<string, string>> $aplicaciones */
+    private function issueReceipt(PagoEloquentModel $pago, EdificioEloquentModel $edificio, DepartamentoEloquentModel $departamento, Collection $owners, array $aplicaciones, string $userId): void
+    {
+        $recibo = new ReciboPagoEloquentModel();
+        $recibo->edificio_id = $pago->edificio_id;
+        $recibo->departamento_id = $pago->departamento_id;
+        $recibo->pago_id = $pago->id;
+        $recibo->fill([
+            'numero' => $this->nextReceiptNumber($pago->fecha_pago),
+            'fecha_pago_snapshot' => $pago->fecha_pago,
+            'edificio_nombre_snapshot' => $edificio->nombre,
+            'departamento_codigo_snapshot' => $departamento->codigo,
+            'departamento_nombre_snapshot' => $departamento->nombre,
+            'titulares_snapshot' => $owners->values()->all(),
+            'monto_recibido_snapshot' => $pago->monto_recibido,
+            'forma_pago_snapshot' => $pago->forma_pago->value,
+            'referencia_snapshot' => $pago->referencia,
+            'aplicaciones_snapshot' => $aplicaciones,
+            'estado' => EstadoReciboPago::EMITIDO,
+            'emitido_por' => $userId,
+        ])->save();
+    }
+
+    private function nextReceiptNumber(CarbonImmutable $fechaPago): string
+    {
+        $table = $this->table('consecutivos_recibo');
+        $now = CarbonImmutable::now();
+        $year = (int) $fechaPago->format('Y');
+        DB::table($table)->insertOrIgnore(['anio' => $year, 'ultimo_numero' => 0, 'created_at' => $now, 'updated_at' => $now]);
+        $consecutivo = DB::table($table)->where('anio', $year)->lockForUpdate()->first();
+        $numero = ((int) $consecutivo->ultimo_numero) + 1;
+        if ($numero > 999999) {
+            throw ValidationException::withMessages(['recibo' => 'El consecutivo anual de recibos está agotado.']);
+        }
+        DB::table($table)->where('anio', $year)->update(['ultimo_numero' => $numero, 'updated_at' => $now]);
+
+        return sprintf('REC-%s-%06d', $fechaPago->format('Y'), $numero);
+    }
+
     /** @return array<string, mixed> */
     private function serializePago(PagoEloquentModel $pago, bool $detail = false): array
     {
@@ -473,6 +527,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
             'motivoAnulacion' => $pago->motivo_anulacion,
             'saldoAnterior' => $pago->metadata['saldoAnterior'] ?? null,
             'saldoPosterior' => $pago->metadata['saldoPosterior'] ?? null,
+            'recibo' => $pago->recibo === null ? null : ['id' => $pago->recibo->id, 'numero' => $pago->recibo->numero, 'estado' => $pago->recibo->estado->value],
             'propietarios' => $detail ? $owners : null,
             'aplicaciones' => $detail ? $aplicaciones->map(static fn (AplicacionPagoEloquentModel $aplicacion): array => [
                 'id' => $aplicacion->id,

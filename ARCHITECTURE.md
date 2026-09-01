@@ -73,7 +73,7 @@ Reglas implementadas:
 
 ## Finanzas: conceptos y tarifas
 
-El contexto `Finanzas` configura conceptos y tarifas, genera cargos y registra pagos; recibos definitivos y conciliación bancaria permanecen fuera de alcance.
+El contexto `Finanzas` configura conceptos y tarifas, genera cargos, registra pagos y emite recibos; la conciliación bancaria permanece fuera de alcance.
 
 1. `conceptos_cobro` es un catálogo local al edificio y define tipo, periodicidad, forma de cálculo y estado administrativo.
 2. `tarifas_concepto` guarda valores monetarios, porcentajes y demás parámetros por intervalo temporal; una tarifa no se sobrescribe ni se elimina.
@@ -115,6 +115,9 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 - PostgreSQL protege pagos y aplicaciones contra eliminación o edición destructiva, valida montos positivos, FKs compuestas entre edificio/departamento/cargo/pago y comprueba al commit la coherencia entre saldos de cargos y aplicaciones activas.
 - La cartera es una consulta derivada: saldo bruto de cargos no anulados, aplicaciones, saldo a favor y saldo neto. No existe una tabla de cartera editable.
 - El pago pertenece al departamento; un propietario único queda referenciado y todos los titulares vigentes quedan en el snapshot. La copropiedad no divide el pago.
+- Cada pago registrado emite dentro de la misma transacción un único recibo inmutable, con consecutivo global por año. El recibo congela edificio, departamento, titulares, valor, forma, referencia y aplicaciones iniciales.
+- Anular un pago anula su recibo con el mismo motivo, usuario y fecha; ninguno se elimina ni se reemite. Las aplicaciones posteriores de saldo a favor no reescriben el snapshot del recibo.
+- Las evidencias de pago son archivos privados PDF, JPG o PNG de hasta 10 MB. Se adjuntan sólo a pagos registrados, se validan por contenido, guardan SHA-256, no se editan ni eliminan y su descarga conserva la autorización del edificio.
 
 ## Finanzas: cartera y estado de cuenta
 
@@ -131,7 +134,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas y propietarios implementados; residentes pendientes |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
-| Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, saldo a favor y cartera preliminar implementados; recibos y comprobantes pendientes |
+| Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
@@ -144,7 +147,6 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 - Definir identidad reutilizable para residentes, inquilinos y proveedores sin acoplarla a autenticación.
 - Definir vigencia e historial de ocupación.
 - Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
-- Definir si comprobante significa recibo emitido, evidencia de pago o ambos.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 
 ## Convención de contexto

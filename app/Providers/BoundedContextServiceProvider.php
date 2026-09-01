@@ -21,11 +21,13 @@ use Src\Finanzas\Domain\Contracts\ConceptoCobroRepositoryInterface;
 use Src\Finanzas\Domain\Contracts\CargoRepositoryInterface;
 use Src\Finanzas\Domain\Contracts\CarteraReadRepositoryInterface;
 use Src\Finanzas\Domain\Contracts\PagoRepositoryInterface;
+use Src\Finanzas\Domain\Contracts\ReciboPagoRepositoryInterface;
 use Src\Finanzas\Domain\Contracts\TarifaConceptoRepositoryInterface;
 use Src\Finanzas\Infrastructure\Repositories\EloquentConceptoCobroRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentCargoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentCarteraReadRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentPagoRepository;
+use Src\Finanzas\Infrastructure\Repositories\EloquentReciboPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
 use Src\Propiedad\Domain\Contracts\PropietarioRepositoryInterface;
@@ -62,6 +64,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(CargoRepositoryInterface::class, EloquentCargoRepository::class);
         $this->app->bind(CarteraReadRepositoryInterface::class, EloquentCarteraReadRepository::class);
         $this->app->bind(PagoRepositoryInterface::class, EloquentPagoRepository::class);
+        $this->app->bind(ReciboPagoRepositoryInterface::class, EloquentReciboPagoRepository::class);
         $this->app->bind(TarifaConceptoRepositoryInterface::class, EloquentTarifaConceptoRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }

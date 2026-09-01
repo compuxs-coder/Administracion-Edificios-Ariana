@@ -85,7 +85,7 @@ final class PagoWebController extends Controller
     {
         $pago = $this->createPago->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $request->validated());
 
-        return redirect()->route('pagos.show', [$edificio->id, $pago['id']])->with('success', 'Pago registrado y aplicado exitosamente.');
+        return redirect()->route('pagos.show', [$edificio->id, $pago['id']])->with('success', 'Pago registrado, aplicado y recibo emitido exitosamente.');
     }
 
     public function show(Request $request, EdificioEloquentModel $edificio, PagoEloquentModel $pago): Response
