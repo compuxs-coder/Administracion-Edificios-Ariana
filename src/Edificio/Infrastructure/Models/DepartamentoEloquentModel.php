@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
 use Src\Edificio\Infrastructure\Models\Concerns\UsesApplicationSchema;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 
 final class DepartamentoEloquentModel extends Model
 {
@@ -49,6 +50,12 @@ final class DepartamentoEloquentModel extends Model
     public function titularidades(): HasMany
     {
         return $this->hasMany(DepartamentoPropietarioEloquentModel::class, 'departamento_id');
+    }
+
+    /** @return HasMany<DepartamentoResidenteEloquentModel, $this> */
+    public function ocupaciones(): HasMany
+    {
+        return $this->hasMany(DepartamentoResidenteEloquentModel::class, 'departamento_id');
     }
 
     protected function casts(): array

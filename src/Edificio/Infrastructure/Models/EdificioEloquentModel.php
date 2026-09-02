@@ -10,6 +10,7 @@ use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Domain\Enums\EstadoEdificio;
 use Src\Edificio\Infrastructure\Models\Concerns\UsesApplicationSchema;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
 
 final class EdificioEloquentModel extends Model
 {
@@ -83,6 +84,17 @@ final class EdificioEloquentModel extends Model
             $this->qualifiedTable('propietario_edificio'),
             'edificio_id',
             'propietario_id',
+        )->withTimestamps();
+    }
+
+    /** @return BelongsToMany<ResidenteEloquentModel, $this> */
+    public function residentes(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ResidenteEloquentModel::class,
+            $this->qualifiedTable('residente_edificio'),
+            'edificio_id',
+            'residente_id',
         )->withTimestamps();
     }
 

@@ -20,6 +20,7 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Requests\ChangeEstructuraStatusRequest;
 use Src\Edificio\Infrastructure\Requests\SaveDepartamentoRequest;
 use Src\Propiedad\Application\Actions\GetDepartamentoPropiedadAction;
+use Src\Propiedad\Application\Actions\GetDepartamentoOcupacionAction;
 
 final class DepartamentoWebController extends Controller
 {
@@ -31,6 +32,7 @@ final class DepartamentoWebController extends Controller
         private readonly UpdateDepartamentoAction $updateDepartamento,
         private readonly ChangeDepartamentoStatusAction $changeStatus,
         private readonly GetDepartamentoPropiedadAction $getPropiedad,
+        private readonly GetDepartamentoOcupacionAction $getOcupacion,
     ) {}
 
     public function index(Request $request): Response
@@ -107,6 +109,7 @@ final class DepartamentoWebController extends Controller
         return Inertia::render('Departamento/show', [
             'departamento' => $this->getDepartamento->execute($edificio->id, $departamento),
             'propiedad' => $this->getPropiedad->execute($userId, $edificio->id, $departamento),
+            'ocupacion' => $this->getOcupacion->execute($userId, $edificio->id, $departamento),
         ]);
     }
 

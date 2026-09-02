@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades de propietarios y titularidades, y Finanzas configura conceptos y tarifas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, y Finanzas configura conceptos y tarifas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -21,7 +21,7 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 7. Las pruebas deberán demostrar que un usuario asignado a un edificio no puede leer ni modificar información de otro.
 8. Las tablas globales, como el catálogo de edificios y la identidad de usuarios, se distinguirán expresamente de las tablas con alcance por edificio.
 
-La asignación inicial se implementa mediante `edificio_usuario`. El creador recibe acceso al edificio y las policies validan esa asignación. Roles detallados y relaciones de ocupación se definirán en las siguientes etapas.
+La asignación inicial se implementa mediante `edificio_usuario`. El creador recibe acceso al edificio y las policies validan esa asignación. Las relaciones de ocupación no conceden acceso; los roles administrativos detallados continúan pendientes.
 
 ## Estructura física
 
@@ -36,7 +36,7 @@ Decisiones implementadas:
 5. Parqueaderos y bodegas son entidades independientes. Su disponibilidad se deriva de una asignación temporal vigente, no de un estado duplicado.
 6. Las asignaciones conservan `fecha_inicio` y `fecha_fin`; PostgreSQL impide asignaciones vigentes duplicadas e intervalos históricos superpuestos.
 7. La inactivación reemplaza la eliminación física. Las FKs usan `RESTRICT` para proteger la jerarquía y el historial.
-8. El estado administrativo del departamento no representa ocupación. Los propietarios tienen vigencia propia; residentes se incorporarán posteriormente.
+8. El estado administrativo del departamento no representa ocupación. Propietarios y residentes tienen relaciones temporales independientes, y un departamento ocupado no puede inactivarse hasta finalizar sus ocupaciones.
 
 ## Principios
 
@@ -51,11 +51,13 @@ Decisiones implementadas:
 
 ## Propietarios y titularidad
 
-El contexto `Propiedad` separa tres conceptos:
+El contexto `Propiedad` separa identidades y perfiles de dominio:
 
-1. `Propietario` es una identidad global natural o jurídica y no es un usuario de autenticación.
-2. `propietario_edificio` delimita qué administradores pueden consultar la identidad.
-3. `departamento_propietarios` representa la titularidad temporal, su porcentaje y su historial.
+1. `Tercero` es una identidad global natural o jurídica y no es un usuario de autenticación.
+2. `Propietario` y `Residente` son perfiles de esa identidad; una persona natural puede cumplir ambos sin duplicarse.
+3. `propietario_edificio` y `residente_edificio` delimitan qué administradores pueden consultar cada perfil.
+4. `departamento_propietarios` representa la titularidad temporal, su porcentaje y su historial.
+5. `departamento_residentes` representa la ocupación temporal y su historial, sin alterar la titularidad.
 
 Reglas implementadas:
 
@@ -70,6 +72,20 @@ Reglas implementadas:
 - Cada titularidad conserva un snapshot del nombre e identificación utilizados al iniciarla.
 - Modificar una identidad global exige acceso administrativo a todos los edificios vinculados.
 - Ser propietario no concede acceso mediante `edificio_usuario` ni crea una cuenta en `users`.
+
+## Residentes y ocupación
+
+ETAPA 10 incorpora residentes dentro de `Propiedad`, porque identidad, titularidad y ocupación deben distinguirse pero diseñarse en conjunto.
+
+- Un residente corresponde siempre a un tercero de tipo persona natural, con identificación global obligatoria.
+- La misma identidad puede tener perfiles de propietario y residente. La migración evolutiva enlaza los propietarios históricos a terceros sin cambiar sus identificadores ni titularidades.
+- Un residente puede ocupar simultáneamente varios departamentos, incluso en edificios distintos. Un departamento admite varios residentes.
+- Las ocupaciones usan intervalos semiabiertos `[fecha_inicio, fecha_fin)` y sólo se impide el solapamiento de la misma pareja residente-departamento.
+- Los tipos mínimos son `propietario_ocupante`, `arrendatario` y `otro`. El propietario ocupante requiere una titularidad vigente de la misma identidad al inicio, y un guard diferido impide que cambios posteriores reescriban esa correspondencia histórica.
+- Cada ocupación congela nombre e identificación. Finalizarla conserva la fila; las ocupaciones finalizadas y sus datos de origen no se editan ni eliminan.
+- Sólo edificio, departamento y residente activos admiten una nueva ocupación. Un residente o departamento con ocupaciones activas no puede inactivarse.
+- Residente no es un usuario ni un rol de autorización. Las consultas y cambios siguen delimitados por `edificio_usuario`.
+- Modificar una identidad compartida exige acceso a todos los edificios vinculados por sus perfiles de propietario y residente.
 
 ## Finanzas: conceptos y tarifas
 
@@ -132,7 +148,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
-| Propiedad y ocupación | Edificios, estructura física, alícuotas y propietarios implementados; residentes pendientes |
+| Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
 | Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
 | Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
@@ -144,8 +160,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 ## Decisiones pendientes
 
 - Definir roles y permisos específicos dentro de cada edificio.
-- Definir identidad reutilizable para residentes, inquilinos y proveedores sin acoplarla a autenticación.
-- Definir vigencia e historial de ocupación.
+- Extender los perfiles de la identidad reutilizable cuando se incorporen proveedores u otros terceros.
 - Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 

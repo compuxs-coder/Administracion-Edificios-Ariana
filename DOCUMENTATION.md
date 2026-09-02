@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Residentes, gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios, residentes con ocupación histórica y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -63,6 +63,7 @@ Durante la transición:
 - `edificios` y `edificio_usuario` residen en `administracion_edificios`.
 - Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
+- Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
 - Conceptos de cobro, tarifas y sus alcances por departamento residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
@@ -114,7 +115,7 @@ Jerarquía y reglas:
 - La disponibilidad `disponible/asignado/inactivo` se calcula desde el estado administrativo y la asignación vigente.
 - Cambiar anexos cierra el intervalo anterior y conserva el historial.
 - PostgreSQL impide intervalos superpuestos para un mismo anexo mediante guards transaccionales.
-- Inactivar un departamento cierra sus asignaciones vigentes; la ocupación se modelará en una etapa posterior.
+- Inactivar un departamento cierra sus anexos vigentes, pero queda bloqueado mientras existan ocupaciones activas que deban finalizarse explícitamente.
 
 Superficies web principales:
 
@@ -137,13 +138,17 @@ Las operaciones de actualización de torres, pisos y anexos utilizan rutas `PUT`
 
 ## Módulo Propiedad
 
-El contexto `src/Propiedad` implementa propietarios naturales y jurídicos, directorio multiedificio y titularidad temporal de departamentos. El contexto heredado `Cliente` no se reutiliza porque carece de estados, historial, aislamiento por edificio y copropiedad.
+El contexto `src/Propiedad` implementa identidades compartidas, propietarios naturales y jurídicos, residentes, directorios multiedificio, titularidad temporal y ocupación histórica de departamentos. El contexto heredado `Cliente` no se reutiliza porque carece de estados, historial y aislamiento por edificio.
 
 Tablas:
 
-- `propietarios`: identidad, contacto, estado y observaciones.
-- `propietario_edificio`: visibilidad administrativa de la identidad.
+- `terceros`: identidad global natural o jurídica reutilizable por perfiles de dominio.
+- `propietarios`: perfil de propietario, estado y observaciones enlazado a un tercero.
+- `propietario_edificio`: visibilidad administrativa del propietario.
 - `departamento_propietarios`: porcentaje, vigencia, estado y snapshot histórico.
+- `residentes`: perfil natural, estado y observaciones enlazado a un tercero.
+- `residente_edificio`: visibilidad administrativa e histórica del residente.
+- `departamento_residentes`: tipo, vigencia y snapshot de cada ocupación.
 
 Reglas de negocio:
 
@@ -158,6 +163,18 @@ Reglas de negocio:
 - Sólo usuarios asignados al edificio pueden consultar o modificar sus relaciones.
 - Una identidad compartida sólo puede editarse si el usuario administra todos sus edificios vinculados.
 
+Reglas de residentes y ocupación:
+
+- El residente es siempre una persona natural con identificación obligatoria y no es un usuario de autenticación.
+- La identidad global puede compartir perfiles de propietario y residente sin duplicar su identificación.
+- Los propietarios existentes se enlazan a `terceros` mediante una migración evolutiva que conserva IDs e historial.
+- Los tipos de ocupación son propietario ocupante, arrendatario y otro; el primero exige titularidad vigente al inicio y PostgreSQL impide que una finalización o transferencia retroactiva invalide esa correspondencia.
+- Un departamento admite varios residentes y una persona puede ocupar varias unidades simultáneamente.
+- Los intervalos son semiabiertos `[fecha_inicio, fecha_fin)` y la misma pareja residente-departamento no puede solaparse.
+- Finalizar una ocupación conserva snapshots de nombre e identificación; el historial no se edita ni elimina.
+- No se puede inactivar un residente o departamento con ocupaciones activas.
+- Editar una identidad compartida requiere acceso a todos los edificios vinculados por sus perfiles.
+
 Rutas principales:
 
 ```text
@@ -168,13 +185,22 @@ GET    /propietarios/{propietario}
 GET    /propietarios/{propietario}/edit
 PUT    /propietarios/{propietario}
 PATCH  /propietarios/{propietario}/estado
+GET    /residentes
+GET    /residentes/create
+POST   /edificios/{edificio}/residentes
+GET    /residentes/{residente}
+GET    /residentes/{residente}/edit
+PUT    /residentes/{residente}
+PATCH  /residentes/{residente}/estado
 GET    /edificios/{edificio}/departamentos/{departamento}
 POST   /edificios/{edificio}/departamentos/{departamento}/propietarios
 PATCH  /edificios/{edificio}/departamentos/{departamento}/propietarios/{titularidad}/finalizar
 POST   /edificios/{edificio}/departamentos/{departamento}/propietarios/transferir
+POST   /edificios/{edificio}/departamentos/{departamento}/residentes
+PATCH  /edificios/{edificio}/departamentos/{departamento}/residentes/{ocupacion}/finalizar
 ```
 
-No existen rutas de eliminación para propietarios o titularidades.
+No existen rutas de eliminación para propietarios, titularidades, residentes u ocupaciones.
 
 ## Módulo Finanzas
 

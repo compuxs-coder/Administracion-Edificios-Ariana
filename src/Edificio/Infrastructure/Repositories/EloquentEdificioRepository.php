@@ -4,11 +4,15 @@ namespace Src\Edificio\Infrastructure\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Contracts\EdificioRepositoryInterface;
 use Src\Edificio\Domain\Entities\Edificio;
+use Src\Edificio\Domain\Enums\EstadoEdificio;
 use Src\Edificio\Infrastructure\Mappers\EdificioMapper;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Models\TorreEloquentModel;
+use Src\Propiedad\Domain\Enums\EstadoOcupacion;
+use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 
 final class EloquentEdificioRepository implements EdificioRepositoryInterface
 {
@@ -75,11 +79,25 @@ final class EloquentEdificioRepository implements EdificioRepositoryInterface
 
     public function save(Edificio $edificio): Edificio
     {
-        $model = EdificioEloquentModel::query()->updateOrCreate(
-            ['id' => $edificio->id()],
-            EdificioMapper::toPersistence($edificio),
-        );
+        return DB::transaction(function () use ($edificio): Edificio {
+            EdificioEloquentModel::query()->whereKey($edificio->id())->lockForUpdate()->first();
 
-        return EdificioMapper::toDomain($model);
+            if ($edificio->estado() === EstadoEdificio::INACTIVO
+                && DepartamentoResidenteEloquentModel::query()
+                    ->where('edificio_id', $edificio->id())
+                    ->where('estado', EstadoOcupacion::ACTIVA->value)
+                    ->exists()) {
+                throw ValidationException::withMessages([
+                    'estado' => 'Finalice primero todas las ocupaciones activas del edificio.',
+                ]);
+            }
+
+            $model = EdificioEloquentModel::query()->updateOrCreate(
+                ['id' => $edificio->id()],
+                EdificioMapper::toPersistence($edificio),
+            );
+
+            return EdificioMapper::toDomain($model);
+        });
     }
 }

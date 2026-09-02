@@ -16,6 +16,8 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Models\ParqueaderoEloquentModel;
 use Src\Edificio\Infrastructure\Models\PisoEloquentModel;
 use Src\Edificio\Infrastructure\Models\TorreEloquentModel;
+use Src\Propiedad\Domain\Enums\EstadoOcupacion;
+use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 
 final class EloquentDepartamentoRepository implements DepartamentoRepositoryInterface
 {
@@ -189,6 +191,14 @@ final class EloquentDepartamentoRepository implements DepartamentoRepositoryInte
             if ($estado === EstadoEstructura::ACTIVO) {
                 $this->activePiso($edificioId, $departamento->piso_id);
             } else {
+                if (DepartamentoResidenteEloquentModel::query()
+                    ->where('departamento_id', $departamento->id)
+                    ->where('estado', EstadoOcupacion::ACTIVA->value)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'estado' => 'Finalice primero todas las ocupaciones activas del departamento.',
+                    ]);
+                }
                 $now = now();
                 $this->lockCurrentAnnexes($departamento);
                 $departamento->asignacionesParqueaderos()->whereNull('fecha_fin')->update(['fecha_fin' => $now]);

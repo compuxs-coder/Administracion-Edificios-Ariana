@@ -208,6 +208,107 @@ export interface DepartamentoPropiedad {
   participacionActual: string
 }
 
+export type EstadoResidente = 'activo' | 'inactivo'
+export type EstadoOcupacion = 'activa' | 'finalizada'
+export type TipoOcupacion = 'propietario_ocupante' | 'arrendatario' | 'otro'
+
+export interface OcupacionResidente {
+  id: string
+  edificioId: string
+  edificio: string
+  departamentoId: string
+  departamento: string
+  torre: string
+  piso: string
+  tipoOcupacion: TipoOcupacion
+  fechaInicio: string
+  fechaFin: string | null
+  estado: EstadoOcupacion
+  observaciones: string | null
+}
+
+export interface Residente {
+  id: string
+  terceroId: string
+  nombres: string
+  apellidos: string
+  nombre: string
+  tipoIdentificacion: TipoIdentificacion
+  identificacion: string
+  telefono: string | null
+  celular: string | null
+  correo: string | null
+  direccion: string | null
+  estado: EstadoResidente
+  observaciones: string | null
+  ocupacionesActualesCount: number
+  puedeGestionar: boolean
+  ocupacionesActuales?: OcupacionResidente[]
+  historialOcupaciones?: OcupacionResidente[]
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface ResidenteFormData {
+  edificio_id: string
+  nombres: string
+  apellidos: string
+  tipo_identificacion: TipoIdentificacion
+  identificacion: string
+  telefono: string
+  celular: string
+  correo: string
+  direccion: string
+  observaciones: string
+}
+
+export interface ResidenteOption {
+  id: string
+  nombre: string
+  identificacion: string
+}
+
+export interface OcupacionDepartamento {
+  id: string
+  residenteId: string
+  nombre: string
+  identificacion: string
+  tipoOcupacion: TipoOcupacion
+  fechaInicio: string
+  fechaFin: string | null
+  estado: EstadoOcupacion
+  observaciones: string | null
+}
+
+export interface DepartamentoOcupacion {
+  actuales: OcupacionDepartamento[]
+  historial: OcupacionDepartamento[]
+  opciones: ResidenteOption[]
+}
+
+export interface ResidenteFilters {
+  buscar?: string | null
+  estado?: EstadoResidente | null
+  edificio_id?: string | null
+}
+
+export interface PaginationMeta {
+  total: number
+  currentPage: number
+  lastPage: number
+  perPage: number
+}
+
+export interface ResidentesPaginados {
+  data: Residente[]
+  meta: PaginationMeta
+}
+
+export interface EdificioResidenteOption {
+  id: string
+  nombre: string
+}
+
 export type TipoConceptoCobro = 'ordinario' | 'extraordinario' | 'consumo' | 'multa' | 'interes' | 'otro'
 export type PeriodicidadCobro = 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'unico' | 'manual'
 export type FormaCalculoCobro = 'valor_fijo' | 'por_alicuota' | 'porcentaje' | 'por_consumo' | 'manual'

@@ -13,6 +13,7 @@ use Src\Propiedad\Domain\Enums\EstadoTitularidad;
 use Src\Propiedad\Domain\Enums\TipoPersona;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Models\TerceroEloquentModel;
 
 final class EloquentPropietarioRepository implements PropietarioRepositoryInterface
 {
@@ -130,11 +131,49 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
                 ->where('estado', 'activo')
                 ->lockForUpdate()
                 ->findOrFail($edificioId);
+            $identity = $this->identityData($data);
+            $tercero = TerceroEloquentModel::query()
+                ->where('tipo_identificacion', $identity['tipo_identificacion'])
+                ->where('identificacion', $identity['identificacion'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($tercero !== null) {
+                $residentIsVisible = $tercero->residente()
+                    ->whereHas('edificios', static fn (Builder $query) => $query->whereKey($edificioId))
+                    ->exists();
+                if ($tercero->propietario()->exists()
+                    || $tercero->tipo_persona->value !== $identity['tipo_persona']
+                    || ! $residentIsVisible) {
+                    throw ValidationException::withMessages([
+                        'identificacion' => 'Ya existe una identidad con este tipo e identificación.',
+                    ]);
+                }
+                if ($this->ownerIdentityData($tercero) !== $identity) {
+                    throw ValidationException::withMessages([
+                        'identificacion' => 'Los datos deben coincidir con la identidad del residente existente.',
+                    ]);
+                }
+            } else {
+                $tercero = new TerceroEloquentModel();
+                try {
+                    $tercero->fill($identity)->save();
+                } catch (UniqueConstraintViolationException) {
+                    throw ValidationException::withMessages([
+                        'identificacion' => 'Ya existe una identidad con este tipo e identificación.',
+                    ]);
+                }
+            }
+
             $propietario = new PropietarioEloquentModel();
             $propietario->estado = EstadoPropietario::ACTIVO;
+            $propietario->tercero_id = $tercero->id;
 
             try {
-                $propietario->fill($this->persistenceData($data))->save();
+                $propietario->fill([
+                    ...$this->ownerIdentityData($tercero),
+                    'observaciones' => $this->nullableTrim($data['observaciones'] ?? null),
+                ])->save();
             } catch (UniqueConstraintViolationException) {
                 throw ValidationException::withMessages([
                     'identificacion' => 'Ya existe un propietario con este tipo e identificación.',
@@ -154,9 +193,31 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
                 ->lockForUpdate()
                 ->findOrFail($propietarioId);
             $this->assertUserCanManage($userId, $propietario);
+            $tercero = TerceroEloquentModel::query()->lockForUpdate()->findOrFail($propietario->tercero_id);
+            $identity = $this->identityData($data);
+            if ($identity['tipo_persona'] !== TipoPersona::PERSONA_NATURAL->value
+                && $tercero->residente()->exists()) {
+                throw ValidationException::withMessages([
+                    'tipo_persona' => 'Una identidad con perfil de residente debe permanecer como persona natural.',
+                ]);
+            }
+            $conflict = TerceroEloquentModel::query()
+                ->where('tipo_identificacion', $identity['tipo_identificacion'])
+                ->where('identificacion', $identity['identificacion'])
+                ->whereKeyNot($tercero->id)
+                ->exists();
+            if ($conflict) {
+                throw ValidationException::withMessages([
+                    'identificacion' => 'Ya existe una identidad con este tipo e identificación.',
+                ]);
+            }
 
             try {
-                $propietario->fill($this->persistenceData($data))->save();
+                $tercero->fill($identity)->save();
+                $propietario->fill([
+                    ...$identity,
+                    'observaciones' => $this->nullableTrim($data['observaciones'] ?? null),
+                ])->save();
             } catch (UniqueConstraintViolationException) {
                 throw ValidationException::withMessages([
                     'identificacion' => 'Ya existe un propietario con este tipo e identificación.',
@@ -211,10 +272,37 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
     }
 
     /** @return array<string, mixed> */
+    private function identityData(array $data): array
+    {
+        $identity = $this->persistenceData($data);
+        unset($identity['observaciones']);
+
+        return $identity;
+    }
+
+    /** @return array<string, mixed> */
+    private function ownerIdentityData(TerceroEloquentModel $tercero): array
+    {
+        return [
+            'tipo_persona' => $tercero->tipo_persona->value,
+            'nombres' => $tercero->nombres,
+            'apellidos' => $tercero->apellidos,
+            'razon_social' => $tercero->razon_social,
+            'tipo_identificacion' => $tercero->tipo_identificacion->value,
+            'identificacion' => $tercero->identificacion,
+            'telefono' => $tercero->telefono,
+            'celular' => $tercero->celular,
+            'correo' => $tercero->correo,
+            'direccion' => $tercero->direccion,
+        ];
+    }
+
+    /** @return array<string, mixed> */
     private function serialize(PropietarioEloquentModel $model, ?string $userId = null): array
     {
         return [
             'id' => $model->id,
+            'terceroId' => $model->tercero_id,
             'tipoPersona' => $model->tipo_persona->value,
             'nombres' => $model->nombres,
             'apellidos' => $model->apellidos,
@@ -284,10 +372,21 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
 
     private function userCanManage(string $userId, PropietarioEloquentModel $propietario): bool
     {
-        return $propietario->edificios()
+        $canManageOwner = $propietario->edificios()
             ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
             ->exists()
             && ! $propietario->edificios()
+                ->whereDoesntHave('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+                ->exists();
+
+        if (! $canManageOwner) {
+            return false;
+        }
+
+        $residente = $propietario->tercero?->residente()->first();
+
+        return $residente === null
+            || ! $residente->edificios()
                 ->whereDoesntHave('usuarios', static fn (Builder $query) => $query->whereKey($userId))
                 ->exists();
     }

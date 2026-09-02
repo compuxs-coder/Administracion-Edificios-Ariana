@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Src\Propiedad\Application\Controllers\PropietarioWebController;
 use Src\Propiedad\Application\Controllers\TitularidadWebController;
+use Src\Propiedad\Application\Controllers\ResidenteWebController;
+use Src\Propiedad\Application\Controllers\OcupacionWebController;
 
 Route::middleware('auth')->group(function () {
     Route::get('propietarios', [PropietarioWebController::class, 'index'])
@@ -38,4 +40,34 @@ Route::middleware('auth')->group(function () {
         ->whereUuid('edificio')
         ->whereUuid('departamento')
         ->name('departamentos.propietarios.transfer');
+
+    Route::get('residentes', [ResidenteWebController::class, 'index'])
+        ->name('residentes.index');
+    Route::get('residentes/create', [ResidenteWebController::class, 'create'])
+        ->name('residentes.create');
+    Route::post('edificios/{edificio}/residentes', [ResidenteWebController::class, 'store'])
+        ->whereUuid('edificio')
+        ->name('residentes.store');
+    Route::get('residentes/{residente}', [ResidenteWebController::class, 'show'])
+        ->whereUuid('residente')
+        ->name('residentes.show');
+    Route::get('residentes/{residente}/edit', [ResidenteWebController::class, 'edit'])
+        ->whereUuid('residente')
+        ->name('residentes.edit');
+    Route::put('residentes/{residente}', [ResidenteWebController::class, 'update'])
+        ->whereUuid('residente')
+        ->name('residentes.update');
+    Route::patch('residentes/{residente}/estado', [ResidenteWebController::class, 'changeStatus'])
+        ->whereUuid('residente')
+        ->name('residentes.estado');
+
+    Route::post('edificios/{edificio}/departamentos/{departamento}/residentes', [OcupacionWebController::class, 'assign'])
+        ->whereUuid('edificio')
+        ->whereUuid('departamento')
+        ->name('departamentos.residentes.assign');
+    Route::patch('edificios/{edificio}/departamentos/{departamento}/residentes/{ocupacion}/finalizar', [OcupacionWebController::class, 'finalize'])
+        ->whereUuid('edificio')
+        ->whereUuid('departamento')
+        ->whereUuid('ocupacion')
+        ->name('departamentos.residentes.finalize');
 });

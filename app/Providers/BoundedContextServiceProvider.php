@@ -30,10 +30,16 @@ use Src\Finanzas\Infrastructure\Repositories\EloquentPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentReciboPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
+use Src\Propiedad\Application\Policies\ResidentePolicy;
+use Src\Propiedad\Domain\Contracts\OcupacionRepositoryInterface;
 use Src\Propiedad\Domain\Contracts\PropietarioRepositoryInterface;
+use Src\Propiedad\Domain\Contracts\ResidenteRepositoryInterface;
 use Src\Propiedad\Domain\Contracts\TitularidadRepositoryInterface;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
+use Src\Propiedad\Infrastructure\Repositories\EloquentOcupacionRepository;
 use Src\Propiedad\Infrastructure\Repositories\EloquentPropietarioRepository;
+use Src\Propiedad\Infrastructure\Repositories\EloquentResidenteRepository;
 use Src\Propiedad\Infrastructure\Repositories\EloquentTitularidadRepository;
 
 class BoundedContextServiceProvider extends ServiceProvider
@@ -60,6 +66,8 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(DepartamentoRepositoryInterface::class, EloquentDepartamentoRepository::class);
         $this->app->bind(PropietarioRepositoryInterface::class, EloquentPropietarioRepository::class);
         $this->app->bind(TitularidadRepositoryInterface::class, EloquentTitularidadRepository::class);
+        $this->app->bind(ResidenteRepositoryInterface::class, EloquentResidenteRepository::class);
+        $this->app->bind(OcupacionRepositoryInterface::class, EloquentOcupacionRepository::class);
         $this->app->bind(ConceptoCobroRepositoryInterface::class, EloquentConceptoCobroRepository::class);
         $this->app->bind(CargoRepositoryInterface::class, EloquentCargoRepository::class);
         $this->app->bind(CarteraReadRepositoryInterface::class, EloquentCarteraReadRepository::class);
@@ -76,6 +84,7 @@ class BoundedContextServiceProvider extends ServiceProvider
     {
         Gate::policy(EdificioEloquentModel::class, EdificioPolicy::class);
         Gate::policy(PropietarioEloquentModel::class, PropietarioPolicy::class);
+        Gate::policy(ResidenteEloquentModel::class, ResidentePolicy::class);
 
         $this->loadBoundedContextRoutes();
         $this->loadBoundedContextMigrations();

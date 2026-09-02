@@ -5,6 +5,7 @@ namespace Src\Propiedad\Infrastructure\Models;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Enums\EstadoPropietario;
@@ -29,11 +30,49 @@ final class PropietarioEloquentModel extends Model
         'direccion',
         'estado',
         'observaciones',
+        'tercero_id',
     ];
 
     public function getTable(): string
     {
         return $this->qualifiedTable('propietarios');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $propietario): void {
+            if ($propietario->tercero_id !== null) {
+                return;
+            }
+
+            $tercero = TerceroEloquentModel::query()->firstOrCreate(
+                [
+                    'tipo_identificacion' => $propietario->tipo_identificacion instanceof TipoIdentificacion
+                        ? $propietario->tipo_identificacion->value
+                        : $propietario->tipo_identificacion,
+                    'identificacion' => mb_strtoupper(trim((string) $propietario->identificacion)),
+                ],
+                [
+                    'tipo_persona' => $propietario->tipo_persona instanceof TipoPersona
+                        ? $propietario->tipo_persona->value
+                        : $propietario->tipo_persona,
+                    'nombres' => $propietario->nombres,
+                    'apellidos' => $propietario->apellidos,
+                    'razon_social' => $propietario->razon_social,
+                    'telefono' => $propietario->telefono,
+                    'celular' => $propietario->celular,
+                    'correo' => $propietario->correo,
+                    'direccion' => $propietario->direccion,
+                ],
+            );
+            $propietario->tercero_id = $tercero->id;
+        });
+    }
+
+    /** @return BelongsTo<TerceroEloquentModel, $this> */
+    public function tercero(): BelongsTo
+    {
+        return $this->belongsTo(TerceroEloquentModel::class, 'tercero_id');
     }
 
     /** @return BelongsToMany<EdificioEloquentModel, $this> */

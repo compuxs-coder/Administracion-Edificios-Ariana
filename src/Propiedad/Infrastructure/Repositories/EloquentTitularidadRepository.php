@@ -15,8 +15,10 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Contracts\TitularidadRepositoryInterface;
 use Src\Propiedad\Domain\Enums\EstadoPropietario;
 use Src\Propiedad\Domain\Enums\EstadoTitularidad;
+use Src\Propiedad\Domain\Enums\TipoOcupacion;
 use Src\Propiedad\Domain\Enums\TipoPersona;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
+use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 
 final class EloquentTitularidadRepository implements TitularidadRepositoryInterface
@@ -131,6 +133,13 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
                 ]);
             }
 
+            $this->assertOwnerOccupanciesRemainValid(
+                $titularidad->propietario_id,
+                $departamentoId,
+                $fechaFin,
+                'fecha_fin',
+            );
+
             $titularidad->fill([
                 'fecha_fin' => $fechaFin,
                 'estado' => EstadoTitularidad::FINALIZADA,
@@ -177,6 +186,16 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
                 throw ValidationException::withMessages([
                     'fecha_transferencia' => 'La transferencia debe ser posterior al inicio de todas las titularidades actuales.',
                 ]);
+            }
+
+            $newOwnerIds = $nuevos->pluck('propietario_id')->all();
+            foreach ($actuales->whereNotIn('propietario_id', $newOwnerIds) as $actual) {
+                $this->assertOwnerOccupanciesRemainValid(
+                    $actual->propietario_id,
+                    $departamento->id,
+                    $fecha,
+                    'fecha_transferencia',
+                );
             }
 
             $closingIds = $actuales->pluck('id')->all();
@@ -442,6 +461,34 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function assertOwnerOccupanciesRemainValid(
+        string $propietarioId,
+        string $departamentoId,
+        CarbonImmutable $ownershipEnd,
+        string $errorField,
+    ): void {
+        $terceroId = PropietarioEloquentModel::query()
+            ->whereKey($propietarioId)
+            ->value('tercero_id');
+
+        if ($terceroId === null) {
+            return;
+        }
+
+        $invalidatesOccupancy = DepartamentoResidenteEloquentModel::query()
+            ->where('departamento_id', $departamentoId)
+            ->where('tipo_ocupacion', TipoOcupacion::PROPIETARIO_OCUPANTE->value)
+            ->whereDate('fecha_inicio', '>=', $ownershipEnd->format('Y-m-d'))
+            ->whereHas('residente', static fn (Builder $query) => $query->where('tercero_id', $terceroId))
+            ->exists();
+
+        if ($invalidatesOccupancy) {
+            throw ValidationException::withMessages([
+                $errorField => 'La fecha dejaría una ocupación de propietario sin titularidad vigente al inicio.',
+            ]);
+        }
     }
 
     private function transferNote(?string $current, ?string $transfer): ?string

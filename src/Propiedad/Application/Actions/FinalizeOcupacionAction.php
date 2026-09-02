@@ -1,0 +1,21 @@
+<?php
+
+namespace Src\Propiedad\Application\Actions;
+
+use Src\Propiedad\Domain\Contracts\OcupacionRepositoryInterface;
+
+final readonly class FinalizeOcupacionAction
+{
+    public function __construct(private OcupacionRepositoryInterface $repository) {}
+
+    /** @param array<string, mixed> $data */
+    public function execute(
+        string $userId,
+        string $edificioId,
+        string $departamentoId,
+        string $ocupacionId,
+        array $data,
+    ): void {
+        $this->repository->finalize($userId, $edificioId, $departamentoId, $ocupacionId, $data);
+    }
+}

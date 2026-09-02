@@ -45,8 +45,19 @@ final class PropietarioPolicy
         UserEloquentModel $user,
         PropietarioEloquentModel $propietario,
     ): bool {
-        return $this->isVisible($user, $propietario)
+        $canManageOwner = $this->isVisible($user, $propietario)
             && ! $propietario->edificios()
+                ->whereDoesntHave('usuarios', static fn ($query) => $query->whereKey($user->getKey()))
+                ->exists();
+
+        if (! $canManageOwner) {
+            return false;
+        }
+
+        $residente = $propietario->tercero?->residente()->first();
+
+        return $residente === null
+            || ! $residente->edificios()
                 ->whereDoesntHave('usuarios', static fn ($query) => $query->whereKey($user->getKey()))
                 ->exists();
     }
