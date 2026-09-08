@@ -8,6 +8,7 @@ import type {
   ResidenteFilters,
   ResidentesPaginados
 } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
   residentes: ResidentesPaginados
@@ -23,6 +24,7 @@ const statusLoading = ref(false)
 const statusOpen = ref(false)
 const statusError = ref('')
 const selected = ref<Residente | null>(null)
+const { canAny } = useBuildingPermissions()
 let timer: ReturnType<typeof setTimeout> | undefined
 
 const edificioItems = computed(() => [
@@ -74,7 +76,7 @@ const changeStatus = () => {
     <template #header>
       <UDashboardNavbar title="Residentes">
         <template #leading><UDashboardSidebarCollapse /></template>
-        <template #right><UButton icon="i-lucide-plus" label="Nuevo residente" @click="router.visit(route('residentes.create'))" /></template>
+        <template #right><UButton v-if="canAny('propiedad.gestionar')" icon="i-lucide-plus" label="Nuevo residente" @click="router.visit(route('residentes.create'))" /></template>
       </UDashboardNavbar>
     </template>
     <template #body>

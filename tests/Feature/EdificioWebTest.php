@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Application\Actions\CreateEdificioAction;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
 use Src\Edificio\Domain\Enums\EstadoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Tests\TestCase;
@@ -239,6 +240,8 @@ final class EdificioWebTest extends TestCase
             'estado' => EstadoEdificio::ACTIVO,
         ]);
         $edificio->usuarios()->attach($user->id);
+        $this->app->make(AccesoEdificioRepositoryInterface::class)
+            ->assignAdministrator($edificio->id, $user->id);
 
         return $edificio;
     }

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Application\Actions\GetEvidenciaPagoDownloadAction;
 use Src\Finanzas\Application\Actions\GetReciboPagoAction;
 use Src\Finanzas\Application\Actions\StoreEvidenciaPagoAction;
@@ -27,7 +28,7 @@ final class ReciboPagoWebController extends Controller
 
     public function show(Request $request, EdificioEloquentModel $edificio, PagoEloquentModel $pago): Response
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::COMPROBANTES_VER]);
 
         return Inertia::render('ReciboPago/show', ['recibo' => $this->getRecibo->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $pago->id)]);
     }
@@ -41,7 +42,7 @@ final class ReciboPagoWebController extends Controller
 
     public function downloadEvidence(Request $request, EdificioEloquentModel $edificio, PagoEloquentModel $pago, string $evidencia): StreamedResponse
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::COMPROBANTES_VER]);
         $documento = $this->getEvidencia->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $pago->id, $evidencia);
         return Storage::disk('evidence')->download($documento['path'], $documento['nombre'], [
             'Content-Type' => $documento['mimeType'],

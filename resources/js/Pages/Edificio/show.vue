@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { Edificio, EstadoEdificio } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{ edificio: Edificio }>()
 const isStatusModalOpen = ref(false)
 const isChangingStatus = ref(false)
+const { can } = useBuildingPermissions()
 
 const nextStatus = computed<EstadoEdificio>(() => (
   props.edificio.estado === 'activo' ? 'inactivo' : 'activo'
@@ -42,6 +44,16 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('es', {
         </template>
         <template #right>
           <UButton
+            v-if="can('miembros.ver', edificio.id)"
+            color="neutral"
+            icon="i-lucide-shield-check"
+            label="Accesos"
+            variant="outline"
+            :ui="{ label: 'hidden sm:inline' }"
+            @click="router.visit(route('edificios.accesos.index', edificio.id))"
+          />
+          <UButton
+            v-if="can('estructura.ver', edificio.id)"
             color="primary"
             icon="i-lucide-network"
             label="Estructura"
@@ -51,6 +63,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('es', {
             @click="router.visit(route('edificios.estructura', edificio.id))"
           />
           <UButton
+            v-if="can('edificio.editar', edificio.id)"
             color="neutral"
             icon="i-lucide-pencil"
             label="Editar"
@@ -60,6 +73,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('es', {
             @click="router.visit(route('edificios.edit', edificio.id))"
           />
           <UButton
+            v-if="can('edificio.cambiar_estado', edificio.id)"
             :color="edificio.estado === 'activo' ? 'error' : 'success'"
             :icon="edificio.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'"
             :label="edificio.estado === 'activo' ? 'Inactivar' : 'Activar'"

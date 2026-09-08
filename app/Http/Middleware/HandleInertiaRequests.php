@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Src\Edificio\Application\Services\AccesoEdificioService;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -35,6 +36,10 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $permissionMap = $request->user() === null
+            ? []
+            : app(AccesoEdificioService::class)->permissionMap((string) $request->user()->getAuthIdentifier());
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -43,6 +48,10 @@ class HandleInertiaRequests extends Middleware
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                 ] : null,
+                'access' => [
+                    'byBuilding' => $permissionMap,
+                    'any' => array_values(array_unique(array_merge(...array_values($permissionMap ?: [[]])))),
+                ],
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),

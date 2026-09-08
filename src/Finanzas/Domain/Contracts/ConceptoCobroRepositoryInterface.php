@@ -2,6 +2,7 @@
 
 namespace Src\Finanzas\Domain\Contracts;
 
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Enums\EstadoConceptoCobro;
 
 interface ConceptoCobroRepositoryInterface
@@ -13,7 +14,7 @@ interface ConceptoCobroRepositoryInterface
     public function get(string $userId, string $edificioId, string $conceptoId): array;
 
     /** @return list<array{id: string, nombre: string}> */
-    public function buildingOptions(string $userId): array;
+    public function buildingOptions(string $userId, PermisoEdificio $permission = PermisoEdificio::FINANZAS_VER): array;
 
     /** @param array<string, mixed> $data @return array{id: string} */
     public function create(string $userId, string $edificioId, array $data): array;

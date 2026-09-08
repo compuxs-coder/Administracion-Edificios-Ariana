@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { Departamento, EdificioEstructuraOption, EstadoEstructura } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
   departamentos: {
@@ -22,6 +23,7 @@ const isStatusModalOpen = ref(false)
 const isChangingStatus = ref(false)
 const statusError = ref('')
 const selected = ref<Departamento | null>(null)
+const { can, canAny } = useBuildingPermissions()
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const edificioItems = computed(() => [
@@ -97,7 +99,7 @@ const changeStatus = () => {
       <UDashboardNavbar title="Departamentos">
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
-          <UButton icon="i-lucide-plus" label="Nuevo departamento" @click="router.visit(route('departamentos.create'))" />
+          <UButton v-if="canAny('estructura.gestionar')" icon="i-lucide-plus" label="Nuevo departamento" @click="router.visit(route('departamentos.create'))" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -155,6 +157,7 @@ const changeStatus = () => {
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-1">
                     <UButton
+                      v-if="can('estructura.gestionar', departamento.edificioId)"
                       color="neutral"
                       icon="i-lucide-eye"
                       variant="ghost"
@@ -162,6 +165,7 @@ const changeStatus = () => {
                       @click="router.visit(route('departamentos.show', [departamento.edificioId, departamento.id]))"
                     />
                     <UButton
+                      v-if="can('estructura.gestionar', departamento.edificioId)"
                       color="neutral"
                       icon="i-lucide-pencil"
                       variant="ghost"

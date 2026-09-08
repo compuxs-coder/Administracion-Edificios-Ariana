@@ -10,11 +10,14 @@ import type {
   PisoEstructura,
   TorreEstructura
 } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 type Section = 'jerarquia' | 'parqueaderos' | 'bodegas'
 type EditorType = 'torre' | 'piso' | 'parqueadero' | 'bodega'
 
 const props = defineProps<{ edificio: Edificio, estructura: EstructuraEdificio }>()
+const { can } = useBuildingPermissions()
+const canManage = computed(() => can('estructura.gestionar', props.edificio.id))
 const section = ref<Section>('jerarquia')
 const editorType = ref<EditorType | null>(null)
 const isEditorOpen = ref(false)
@@ -223,6 +226,7 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
             @click="router.visit(route('edificios.show', edificio.id))"
           />
           <UButton
+            v-if="canManage"
             color="primary"
             icon="i-lucide-plus"
             label="Nuevo departamento"
@@ -275,14 +279,14 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
             />
           </div>
           <UButton
-            v-if="section === 'jerarquia'"
+            v-if="canManage && section === 'jerarquia'"
             class="mb-3"
             icon="i-lucide-plus"
             label="Nueva torre"
             @click="openCreate('torre')"
           />
           <UButton
-            v-else
+            v-else-if="canManage"
             class="mb-3"
             icon="i-lucide-plus"
             :label="section === 'parqueaderos' ? 'Nuevo parqueadero' : 'Nueva bodega'"
@@ -306,7 +310,7 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
                   </div>
                   <p class="mt-1 text-sm text-muted">{{ torre.codigo }}<span v-if="torre.descripcion"> · {{ torre.descripcion }}</span></p>
                 </div>
-                <div class="flex shrink-0 gap-1">
+                <div v-if="canManage" class="flex shrink-0 gap-1">
                   <UButton color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar torre" @click="editTorre(torre)" />
                   <UButton
                     v-if="!torre.esPredeterminada"
@@ -337,8 +341,9 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
                   <UBadge :color="piso.estado === 'activo' ? 'success' : 'neutral'" :label="piso.estado" variant="subtle" />
-                  <UButton color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar piso" @click="editPiso(piso)" />
+                  <UButton v-if="canManage" color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar piso" @click="editPiso(piso)" />
                   <UButton
+                    v-if="canManage"
                     :color="piso.estado === 'activo' ? 'error' : 'success'"
                     :icon="piso.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'"
                     variant="ghost"
@@ -353,7 +358,7 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
               </div>
             </div>
 
-            <template #footer>
+            <template v-if="canManage" #footer>
               <UButton
                 color="neutral"
                 icon="i-lucide-plus"
@@ -393,7 +398,7 @@ const operationalLabel = (estado: AnexoEstructura['estadoOperativo']) => ({
                   </td>
                   <td class="px-3 py-3 text-muted">{{ anexo.departamento?.codigo || '—' }}</td>
                   <td class="px-3 py-3">
-                    <div class="flex justify-end gap-1">
+                    <div v-if="canManage" class="flex justify-end gap-1">
                       <UButton
                         color="neutral"
                         icon="i-lucide-pencil"

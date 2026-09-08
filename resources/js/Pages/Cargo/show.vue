@@ -3,8 +3,10 @@ import { computed, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { Cargo } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{ cargo: Cargo }>()
+const { can } = useBuildingPermissions()
 const cancelOpen = ref(false)
 const motivo = ref('')
 const loading = ref(false)
@@ -24,7 +26,7 @@ const cancel = () => router.patch(route('cargos.cancel', [props.cargo.edificioId
     <template #header>
       <UDashboardNavbar :title="`${cargo.departamento} · ${cargo.concepto}`">
         <template #leading><UDashboardSidebarCollapse /></template>
-        <template #right><div class="flex gap-2"><UButton v-if="cargo.estado !== 'anulado' && cargo.saldo !== '0.0000'" icon="i-lucide-hand-coins" label="Registrar pago" variant="outline" @click="router.visit(route('pagos.create', { edificio_id: cargo.edificioId, departamento_id: cargo.departamentoId }))" /><UButton v-if="cargo.estado === 'pendiente'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" /></div></template>
+        <template #right><div class="flex gap-2"><UButton v-if="can('pagos.registrar', cargo.edificioId) && cargo.estado !== 'anulado' && cargo.saldo !== '0.0000'" icon="i-lucide-hand-coins" label="Registrar pago" variant="outline" @click="router.visit(route('pagos.create', { edificio_id: cargo.edificioId, departamento_id: cargo.departamentoId }))" /><UButton v-if="can('cargos.anular', cargo.edificioId) && cargo.estado === 'pendiente'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" /></div></template>
       </UDashboardNavbar>
     </template>
     <template #body>

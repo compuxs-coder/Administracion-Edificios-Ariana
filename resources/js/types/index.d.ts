@@ -36,6 +36,44 @@ export interface EdificioFormData {
   responsable: string
 }
 
+export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'consulta'
+
+export interface RolAccesoEdificio {
+  codigo: RolEdificio
+  nombre: string
+  descripcion: string
+  permisos: string[]
+}
+
+export interface MiembroEdificio {
+  id: string
+  nombre: string
+  email: string
+  roles: RolEdificio[]
+  miembroDesde: string
+}
+
+export interface InvitacionEdificio {
+  id: string
+  email: string
+  rolCodigo: RolEdificio
+  rolNombre: string
+  invitadoPor: string
+  expiraEn: string
+  createdAt: string
+}
+
+export interface EventoAccesoEdificio {
+  id: string
+  tipo: string
+  actor: string | null
+  afectado: string | null
+  rolesAnteriores: RolEdificio[] | null
+  rolesNuevos: RolEdificio[] | null
+  detalle: Record<string, unknown> | null
+  createdAt: string
+}
+
 export type EstadoEstructura = 'activo' | 'inactivo'
 export type EstadoOperativoAnexo = 'disponible' | 'asignado' | 'inactivo'
 

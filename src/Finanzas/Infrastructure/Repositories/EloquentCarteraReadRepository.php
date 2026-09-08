@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Contracts\CarteraReadRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoCargo;
 use Src\Finanzas\Domain\Enums\EstadoPago;
@@ -19,6 +21,8 @@ use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 
 final class EloquentCarteraReadRepository implements CarteraReadRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function paginate(string $userId, array $filters): array
     {
         $fecha = $this->date($filters['fecha'] ?? CarbonImmutable::today()->format('Y-m-d'), 'fecha');
@@ -101,7 +105,7 @@ final class EloquentCarteraReadRepository implements CarteraReadRepositoryInterf
             ->groupBy('p.id', 'p.departamento_id', 'p.monto_recibido');
         $credits = DB::query()->fromSub($creditsPerPayment, 'pf')->selectRaw('departamento_id, COALESCE(SUM(saldo_favor), 0) as saldo_favor')->groupBy('departamento_id');
         $lastPayments = DB::table($pagos)->where('estado', EstadoPago::REGISTRADO->value)->selectRaw('departamento_id, MAX(fecha_pago) as ultimo_pago')->groupBy('departamento_id');
-        $buildingIds = EdificioEloquentModel::query()->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))->pluck('id')->all();
+        $buildingIds = $this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER);
 
         $query = DepartamentoEloquentModel::query()
             ->from((new DepartamentoEloquentModel())->getTable().' as d')
@@ -239,5 +243,5 @@ final class EloquentCarteraReadRepository implements CarteraReadRepositoryInterf
     /** @return array{neto: string, deudor: string, acreedor: string} */
     private function signed(string $value): array { return ['neto' => $value, 'deudor' => bccomp($value, '0.0000', 4) > 0 ? $value : '0.0000', 'acreedor' => bccomp($value, '0.0000', 4) < 0 ? bcsub('0.0000', $value, 4) : '0.0000']; }
     private function date(mixed $value, string $field): CarbonImmutable { $date = CarbonImmutable::createFromFormat('!Y-m-d', (string) $value); if ($date === false || $date->format('Y-m-d') !== $value) throw ValidationException::withMessages([$field => 'La fecha debe tener formato YYYY-MM-DD.']); return $date; }
-    private function authorizedBuilding(string $userId, string $edificioId): void { EdificioEloquentModel::query()->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))->findOrFail($edificioId); }
+    private function authorizedBuilding(string $userId, string $edificioId): void { EdificioEloquentModel::query()->whereKey($this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER))->findOrFail($edificioId); }
 }

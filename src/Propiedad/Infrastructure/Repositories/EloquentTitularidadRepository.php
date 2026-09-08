@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Contracts\TitularidadRepositoryInterface;
@@ -23,6 +25,8 @@ use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 
 final class EloquentTitularidadRepository implements TitularidadRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function getForDepartamento(
         string $userId,
         string $edificioId,
@@ -254,7 +258,10 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
         bool $lock = false,
     ): EdificioEloquentModel {
         $query = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+            ->whereKey($this->access->buildingIds(
+                $userId,
+                $lock ? PermisoEdificio::PROPIEDAD_GESTIONAR : PermisoEdificio::PROPIEDAD_VER,
+            ));
 
         if ($lock) {
             $query->lockForUpdate();
@@ -286,7 +293,9 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
         return PropietarioEloquentModel::query()
             ->whereIn('id', $ids)
             ->where('estado', EstadoPropietario::ACTIVO->value)
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', fn (Builder $query) => $query->whereKey(
+                $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR),
+            ))
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -411,7 +420,9 @@ final class EloquentTitularidadRepository implements TitularidadRepositoryInterf
     {
         return PropietarioEloquentModel::query()
             ->where('estado', EstadoPropietario::ACTIVO->value)
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', fn (Builder $query) => $query->whereKey(
+                $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR),
+            ))
             ->orderByRaw('COALESCE(razon_social, apellidos, nombres)')
             ->get()
             ->map(fn (PropietarioEloquentModel $model): array => [

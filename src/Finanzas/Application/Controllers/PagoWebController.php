@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Application\Actions\ApplyPagoCreditAction;
 use Src\Finanzas\Application\Actions\CancelPagoAction;
 use Src\Finanzas\Application\Actions\CreatePagoAction;
@@ -36,11 +38,12 @@ final class PagoWebController extends Controller
         private readonly ApplyPagoCreditAction $applyCredit,
         private readonly CancelPagoAction $cancelPago,
         private readonly ListCarteraAction $listCartera,
+        private readonly AccesoEdificioService $access,
     ) {}
 
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny((string) $request->user()->getAuthIdentifier(), PermisoEdificio::FINANZAS_VER), 403);
         $filters = $request->validate([
             'edificio_id' => ['nullable', 'uuid'],
             'departamento_id' => ['nullable', 'uuid'],
@@ -65,7 +68,10 @@ final class PagoWebController extends Controller
 
     public function create(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::PAGOS_REGISTRAR,
+        ), 403);
         $filters = $request->validate([
             'edificio_id' => ['nullable', 'uuid'],
             'departamento_id' => ['nullable', 'uuid'],
@@ -78,7 +84,11 @@ final class PagoWebController extends Controller
             $preview = $this->previewPago->execute($userId, $filters['edificio_id'], $filters['departamento_id'], $filters['valor_recibido'], $filters['fecha_pago']);
         }
 
-        return Inertia::render('Pago/create', ['filters' => $filters, 'preview' => $preview, ...$this->getOptions->execute($userId)]);
+        return Inertia::render('Pago/create', [
+            'filters' => $filters,
+            'preview' => $preview,
+            ...$this->getOptions->execute($userId, PermisoEdificio::PAGOS_REGISTRAR),
+        ]);
     }
 
     public function store(SavePagoRequest $request, EdificioEloquentModel $edificio): RedirectResponse
@@ -90,7 +100,7 @@ final class PagoWebController extends Controller
 
     public function show(Request $request, EdificioEloquentModel $edificio, PagoEloquentModel $pago): Response
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::FINANZAS_VER]);
 
         return Inertia::render('Pago/show', ['pago' => $this->getPago->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $pago->id)]);
     }

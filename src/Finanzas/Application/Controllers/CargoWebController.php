@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Application\Actions\CancelCargoAction;
 use Src\Finanzas\Application\Actions\CreateCargoManualAction;
 use Src\Finanzas\Application\Actions\GenerateCargosAction;
@@ -31,11 +33,12 @@ final class CargoWebController extends Controller
         private readonly GenerateCargosAction $generateCargos,
         private readonly CreateCargoManualAction $createManual,
         private readonly CancelCargoAction $cancelCargo,
+        private readonly AccesoEdificioService $access,
     ) {}
 
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny((string) $request->user()->getAuthIdentifier(), PermisoEdificio::FINANZAS_VER), 403);
         $filters = $request->validate([
             'edificio_id' => ['nullable', 'uuid'],
             'departamento_id' => ['nullable', 'uuid'],
@@ -59,7 +62,7 @@ final class CargoWebController extends Controller
 
     public function generate(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny((string) $request->user()->getAuthIdentifier(), PermisoEdificio::CARGOS_GENERAR), 403);
         $data = $request->validate(['edificio_id' => ['nullable', 'uuid'], 'periodo' => ['nullable', 'date_format:Y-m'], 'concepto_cobro_id' => ['nullable', 'uuid']]);
         $userId = (string) $request->user()->getAuthIdentifier();
         $preview = null;
@@ -70,7 +73,7 @@ final class CargoWebController extends Controller
         return Inertia::render('Cargo/generate', [
             'filters' => $data,
             'preview' => $preview,
-            ...$this->getOptions->execute($userId),
+            ...$this->getOptions->execute($userId, PermisoEdificio::CARGOS_GENERAR),
         ]);
     }
 
@@ -89,9 +92,15 @@ final class CargoWebController extends Controller
 
     public function create(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::CARGOS_CREAR,
+        ), 403);
 
-        return Inertia::render('Cargo/create', $this->getOptions->execute((string) $request->user()->getAuthIdentifier()));
+        return Inertia::render('Cargo/create', $this->getOptions->execute(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::CARGOS_CREAR,
+        ));
     }
 
     public function storeManual(SaveCargoManualRequest $request, EdificioEloquentModel $edificio): RedirectResponse
@@ -103,7 +112,7 @@ final class CargoWebController extends Controller
 
     public function show(Request $request, EdificioEloquentModel $edificio, CargoEloquentModel $cargo): Response
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::FINANZAS_VER]);
 
         return Inertia::render('Cargo/show', [
             'cargo' => $this->getCargo->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $cargo->id),

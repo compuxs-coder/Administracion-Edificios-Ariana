@@ -19,4 +19,9 @@ class RegisterRequest extends FormRequest
             'password' => 'required|string|min:8|confirmed'
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['email' => mb_strtolower(trim((string) $this->input('email')))]);
+    }
 }

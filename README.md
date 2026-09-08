@@ -7,7 +7,8 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante policies y asignaciones usuario-edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 19 permisos con alcance por edificio.
+- Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
 - Alícuotas con seis decimales, filtros de departamentos e historial temporal de anexos.
@@ -25,7 +26,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios y estructura física dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad y Finanzas dentro del esquema PostgreSQL privado.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
 

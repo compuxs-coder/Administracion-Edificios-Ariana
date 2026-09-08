@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Contracts\PagoRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoCargo;
 use Src\Finanzas\Domain\Enums\EstadoPago;
@@ -24,10 +26,12 @@ use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 
 final class EloquentPagoRepository implements PagoRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function list(string $userId, array $filters): array
     {
         $query = PagoEloquentModel::query()
-            ->whereHas('departamento.edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER))
             ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones', 'recibo'])
             ->orderByDesc('fecha_pago')
             ->orderByDesc('numero');
@@ -59,7 +63,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
 
     public function get(string $userId, string $edificioId, string $pagoId): array
     {
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::FINANZAS_VER);
         $pago = PagoEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->with(['departamento', 'propietario', 'registradoPor', 'aplicaciones.cargo.concepto', 'recibo'])
@@ -68,10 +72,10 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         return $this->serializePago($pago, true);
     }
 
-    public function options(string $userId): array
+    public function options(string $userId, PermisoEdificio $permission = PermisoEdificio::FINANZAS_VER): array
     {
         $edificios = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds($userId, $permission))
             ->orderBy('nombre')
             ->get(['id', 'nombre']);
         $edificioIds = $edificios->pluck('id')->all();
@@ -105,7 +109,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
     {
         $fecha = $this->date($fechaPago, 'fecha_pago');
         $monto = $this->money($valor, 'valor_recibido');
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::PAGOS_REGISTRAR);
         $departamento = $this->departamento($edificioId, $departamentoId);
         $cargos = $this->pendingCargos($edificioId, $departamento->id);
         $plan = $this->applicationPlan($cargos, $monto);
@@ -136,7 +140,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         }
 
         return DB::transaction(function () use ($userId, $edificioId, $data, $fechaPago, $monto, $formaPago): array {
-            $edificio = $this->authorizedEdificio($userId, $edificioId, true);
+            $edificio = $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::PAGOS_REGISTRAR, true);
             $departamento = $this->departamento($edificioId, (string) ($data['departamento_id'] ?? ''), true);
             $owners = $this->owners($departamento->id, $fechaPago);
             $cargos = $this->pendingCargos($edificioId, $departamento->id, true);
@@ -185,7 +189,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
     public function applyCredit(string $userId, string $edificioId, string $pagoId): array
     {
         return DB::transaction(function () use ($userId, $edificioId, $pagoId): array {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::PAGOS_APLICAR_SALDO, true);
             $pago = PagoEloquentModel::query()->where('edificio_id', $edificioId)->lockForUpdate()->findOrFail($pagoId);
             if ($pago->estado !== EstadoPago::REGISTRADO) {
                 throw ValidationException::withMessages(['estado' => 'No se puede aplicar el saldo a favor de un pago anulado.']);
@@ -211,7 +215,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
     public function cancel(string $userId, string $edificioId, string $pagoId, string $motivo): void
     {
         DB::transaction(function () use ($userId, $edificioId, $pagoId, $motivo): void {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::PAGOS_ANULAR, true);
             $pago = PagoEloquentModel::query()->where('edificio_id', $edificioId)->lockForUpdate()->findOrFail($pagoId);
             if ($pago->estado !== EstadoPago::REGISTRADO) {
                 throw ValidationException::withMessages(['estado' => 'El pago ya fue anulado.']);
@@ -261,7 +265,7 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
     public function cartera(string $userId, array $filters): array
     {
         $departamentos = DepartamentoEloquentModel::query()
-            ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER))
             ->when(($filters['edificio_id'] ?? null) !== null, static fn (Builder $query) => $query->where('edificio_id', $filters['edificio_id']))
             ->when(($filters['departamento_id'] ?? null) !== null, static fn (Builder $query) => $query->whereKey($filters['departamento_id']))
             ->with('edificio')
@@ -300,9 +304,14 @@ final class EloquentPagoRepository implements PagoRepositoryInterface
         return ['items' => $items->all()];
     }
 
-    private function authorizedEdificio(string $userId, string $edificioId, bool $lock = false): EdificioEloquentModel
+    private function authorizedEdificio(
+        string $userId,
+        string $edificioId,
+        PermisoEdificio $permission,
+        bool $lock = false,
+    ): EdificioEloquentModel
     {
-        $query = EdificioEloquentModel::query()->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+        $query = EdificioEloquentModel::query()->whereKey($this->access->buildingIds($userId, $permission));
         if ($lock) {
             $query->lockForUpdate();
         }

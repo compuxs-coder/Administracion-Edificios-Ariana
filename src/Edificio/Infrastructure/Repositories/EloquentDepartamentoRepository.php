@@ -7,7 +7,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Contracts\DepartamentoRepositoryInterface;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\BodegaEloquentModel;
 use Src\Edificio\Infrastructure\Models\DepartamentoBodegaEloquentModel;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
@@ -21,10 +23,12 @@ use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 
 final class EloquentDepartamentoRepository implements DepartamentoRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function paginateForUser(string $userId, array $filters): array
     {
         $query = DepartamentoEloquentModel::query()
-            ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::ESTRUCTURA_VER))
             ->with([
                 'edificio',
                 'piso.torre',
@@ -73,10 +77,13 @@ final class EloquentDepartamentoRepository implements DepartamentoRepositoryInte
         return $model === null ? null : $this->serialize($model);
     }
 
-    public function formOptionsForUser(string $userId): array
+    public function formOptionsForUser(string $userId, bool $forManagement): array
     {
         return EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds(
+                $userId,
+                $forManagement ? PermisoEdificio::ESTRUCTURA_GESTIONAR : PermisoEdificio::ESTRUCTURA_VER,
+            ))
             ->with([
                 'torres' => static fn ($query) => $query->orderBy('nombre'),
                 'torres.pisos' => static fn ($query) => $query->orderBy('orden'),

@@ -7,6 +7,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Propiedad\Domain\Contracts\PropietarioRepositoryInterface;
 use Src\Propiedad\Domain\Enums\EstadoPropietario;
 use Src\Propiedad\Domain\Enums\EstadoTitularidad;
@@ -17,13 +19,16 @@ use Src\Propiedad\Infrastructure\Models\TerceroEloquentModel;
 
 final class EloquentPropietarioRepository implements PropietarioRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function paginateForUser(string $userId, array $filters): array
     {
+        $buildingIds = $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_VER);
         $query = PropietarioEloquentModel::query()
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', static fn (Builder $query) => $query->whereKey($buildingIds))
             ->withCount(['titularidades as propiedades_actuales_count' => static fn (Builder $query) => $query
                 ->where('estado', 'activa')
-                ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))])
+                ->whereIn('edificio_id', $buildingIds)])
             ->when($filters['buscar'] ?? null, static function (Builder $query, string $search): void {
                 $term = '%'.mb_strtolower($search).'%';
                 $query->where(static fn (Builder $query) => $query
@@ -38,7 +43,7 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
             ->when($filters['edificio_id'] ?? null, static fn (Builder $query, string $edificioId) => $query
                 ->whereHas('edificios', static fn (Builder $query) => $query
                     ->whereKey($edificioId)
-                    ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))))
+                    ->whereKey($buildingIds)))
             ->orderByRaw('COALESCE(razon_social, apellidos, nombres)')
             ->orderBy('identificacion');
 
@@ -63,13 +68,14 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
 
     public function findForUser(string $userId, string $propietarioId): ?array
     {
+        $buildingIds = $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_VER);
         $propietario = PropietarioEloquentModel::query()
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', static fn (Builder $query) => $query->whereKey($buildingIds))
             ->withCount(['titularidades as propiedades_actuales_count' => static fn (Builder $query) => $query
                 ->where('estado', EstadoTitularidad::ACTIVA->value)
-                ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))])
+                ->whereIn('edificio_id', $buildingIds)])
             ->with(['titularidades' => static fn ($query) => $query
-                ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+                ->whereIn('edificio_id', $buildingIds)
                 ->with(['edificio', 'departamento.piso.torre'])
                 ->orderByDesc('fecha_inicio')])
             ->find($propietarioId);
@@ -93,10 +99,13 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
         return $result;
     }
 
-    public function buildingOptionsForUser(string $userId): array
+    public function buildingOptionsForUser(string $userId, bool $forManagement): array
     {
         return EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds(
+                $userId,
+                $forManagement ? PermisoEdificio::PROPIEDAD_GESTIONAR : PermisoEdificio::PROPIEDAD_VER,
+            ))
             ->where('estado', 'activo')
             ->orderBy('nombre')
             ->get(['id', 'nombre'])
@@ -110,9 +119,11 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
 
     public function activeOptionsForUser(string $userId): array
     {
+        $buildingIds = $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR);
+
         return PropietarioEloquentModel::query()
             ->where('estado', EstadoPropietario::ACTIVO->value)
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', static fn (Builder $query) => $query->whereKey($buildingIds))
             ->orderByRaw('COALESCE(razon_social, apellidos, nombres)')
             ->get()
             ->map(fn (PropietarioEloquentModel $model): array => [
@@ -124,11 +135,12 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
             ->all();
     }
 
-    public function createForEdificio(string $edificioId, array $data): array
+    public function createForEdificio(string $userId, string $edificioId, array $data): array
     {
-        return DB::transaction(function () use ($edificioId, $data): array {
+        return DB::transaction(function () use ($userId, $edificioId, $data): array {
             $edificio = EdificioEloquentModel::query()
                 ->where('estado', 'activo')
+                ->whereKey($this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR))
                 ->lockForUpdate()
                 ->findOrFail($edificioId);
             $identity = $this->identityData($data);
@@ -372,22 +384,14 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
 
     private function userCanManage(string $userId, PropietarioEloquentModel $propietario): bool
     {
-        $canManageOwner = $propietario->edificios()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
-            ->exists()
-            && ! $propietario->edificios()
-                ->whereDoesntHave('usuarios', static fn (Builder $query) => $query->whereKey($userId))
-                ->exists();
-
-        if (! $canManageOwner) {
-            return false;
+        $buildingIds = $propietario->edificios()->get()->modelKeys();
+        $residente = $propietario->tercero?->residente()->first();
+        if ($residente !== null) {
+            $buildingIds = array_values(array_unique([...$buildingIds, ...$residente->edificios()->get()->modelKeys()]));
         }
 
-        $residente = $propietario->tercero?->residente()->first();
+        $manageableIds = $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR);
 
-        return $residente === null
-            || ! $residente->edificios()
-                ->whereDoesntHave('usuarios', static fn (Builder $query) => $query->whereKey($userId))
-                ->exists();
+        return $buildingIds !== [] && array_diff($buildingIds, $manageableIds) === [];
     }
 }

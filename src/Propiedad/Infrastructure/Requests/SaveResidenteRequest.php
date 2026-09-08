@@ -3,6 +3,7 @@
 namespace Src\Propiedad\Infrastructure\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Illuminate\Validation\Rule;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Enums\TipoIdentificacion;
@@ -14,7 +15,7 @@ final class SaveResidenteRequest extends FormRequest
     {
         $edificio = $this->route('edificio');
         if ($edificio instanceof EdificioEloquentModel) {
-            return $this->user()?->can('update', $edificio) ?? false;
+            return $this->user()?->can('access', [$edificio, PermisoEdificio::PROPIEDAD_GESTIONAR]) ?? false;
         }
 
         $residente = $this->route('residente');

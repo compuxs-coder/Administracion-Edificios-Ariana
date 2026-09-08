@@ -5,6 +5,7 @@ import { route } from 'ziggy-js'
 import type { TableColumn } from '@nuxt/ui'
 import type { Row } from '@tanstack/table-core'
 import type { Edificio, EstadoEdificio } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
   edificios: {
@@ -28,6 +29,7 @@ const isLoading = ref(false)
 const isStatusModalOpen = ref(false)
 const isChangingStatus = ref(false)
 const selected = ref<Edificio | null>(null)
+const { can } = useBuildingPermissions()
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const goToPage = (page: number, replace = false) => {
@@ -77,23 +79,24 @@ const changeStatus = () => {
 
 function getRowItems(row: Row<Edificio>) {
   const edificio = row.original
-
-  return [
+  const items = [
     {
       label: 'Ver detalle',
       icon: 'i-lucide-eye',
       onSelect: () => router.visit(route('edificios.show', edificio.id))
-    },
-    {
+    }
+  ]
+  if (can('edificio.editar', edificio.id)) items.push({
       label: 'Editar',
       icon: 'i-lucide-pencil',
       onSelect: () => router.visit(route('edificios.edit', edificio.id))
-    },
-    {
+  })
+  if (can('estructura.ver', edificio.id)) items.push({
       label: 'Estructura física',
       icon: 'i-lucide-network',
       onSelect: () => router.visit(route('edificios.estructura', edificio.id))
-    },
+  })
+  if (can('edificio.cambiar_estado', edificio.id)) items.push(
     { type: 'separator' },
     {
       label: edificio.estado === 'activo' ? 'Inactivar' : 'Activar',
@@ -101,7 +104,9 @@ function getRowItems(row: Row<Edificio>) {
       color: edificio.estado === 'activo' ? 'error' : 'success',
       onSelect: () => confirmStatusChange(edificio)
     }
-  ]
+  )
+
+  return items
 }
 
 const columns: TableColumn<Edificio>[] = [

@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Contracts\ConceptoCobroRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoConceptoCobro;
 use Src\Finanzas\Domain\Enums\EstadoTarifa;
@@ -18,11 +20,13 @@ use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 
 final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function list(string $userId, array $filters): array
     {
         $today = CarbonImmutable::today()->format('Y-m-d');
         $query = ConceptoCobroEloquentModel::query()
-            ->whereHas('edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER))
             ->with([
                 'edificio',
                 'tarifas' => static fn ($query) => $query
@@ -60,7 +64,7 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
 
     public function get(string $userId, string $edificioId, string $conceptoId): array
     {
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::FINANZAS_VER);
         $concepto = ConceptoCobroEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->with([
@@ -92,10 +96,10 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
         ];
     }
 
-    public function buildingOptions(string $userId): array
+    public function buildingOptions(string $userId, PermisoEdificio $permission = PermisoEdificio::FINANZAS_VER): array
     {
         return EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds($userId, $permission))
             ->orderBy('nombre')
             ->get(['id', 'nombre'])
             ->map(static fn (EdificioEloquentModel $edificio): array => [
@@ -108,7 +112,7 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
     public function create(string $userId, string $edificioId, array $data): array
     {
         return DB::transaction(function () use ($userId, $edificioId, $data): array {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CONCEPTOS_GESTIONAR, true);
             $concepto = new ConceptoCobroEloquentModel();
             $concepto->edificio_id = $edificioId;
             $concepto->fill($this->conceptData($data));
@@ -128,7 +132,7 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
     public function update(string $userId, string $edificioId, string $conceptoId, array $data): void
     {
         DB::transaction(function () use ($userId, $edificioId, $conceptoId, $data): void {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CONCEPTOS_GESTIONAR, true);
             $concepto = $this->lockedConcepto($edificioId, $conceptoId);
             $conceptData = $this->conceptData($data);
             $this->assertConfigurationCanChange($concepto, $conceptData);
@@ -151,7 +155,7 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
         EstadoConceptoCobro $estado,
     ): void {
         DB::transaction(function () use ($userId, $edificioId, $conceptoId, $estado): void {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CONCEPTOS_GESTIONAR, true);
             $this->lockedConcepto($edificioId, $conceptoId)
                 ->fill(['estado' => $estado])
                 ->save();
@@ -161,10 +165,11 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
     private function authorizedEdificio(
         string $userId,
         string $edificioId,
+        PermisoEdificio $permission,
         bool $lock = false,
     ): EdificioEloquentModel {
         $query = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+            ->whereKey($this->access->buildingIds($userId, $permission));
 
         if ($lock) {
             $query->lockForUpdate();

@@ -15,7 +15,9 @@ use Src\Edificio\Application\Actions\GetDepartamentoAction;
 use Src\Edificio\Application\Actions\GetDepartamentoOptionsAction;
 use Src\Edificio\Application\Actions\ListDepartamentosAction;
 use Src\Edificio\Application\Actions\UpdateDepartamentoAction;
+use Src\Edificio\Application\Services\AccesoEdificioService;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Requests\ChangeEstructuraStatusRequest;
 use Src\Edificio\Infrastructure\Requests\SaveDepartamentoRequest;
@@ -33,6 +35,7 @@ final class DepartamentoWebController extends Controller
         private readonly ChangeDepartamentoStatusAction $changeStatus,
         private readonly GetDepartamentoPropiedadAction $getPropiedad,
         private readonly GetDepartamentoOcupacionAction $getOcupacion,
+        private readonly AccesoEdificioService $access,
     ) {}
 
     public function index(Request $request): Response
@@ -68,10 +71,13 @@ final class DepartamentoWebController extends Controller
 
     public function create(Request $request): Response
     {
-        Gate::authorize('create', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::ESTRUCTURA_GESTIONAR,
+        ), 403);
 
         return Inertia::render('Departamento/create', [
-            'edificios' => $this->getOptions->execute((string) $request->user()->getAuthIdentifier()),
+            'edificios' => $this->getOptions->execute((string) $request->user()->getAuthIdentifier(), true),
             'edificioSeleccionado' => $request->query('edificio'),
         ]);
     }
@@ -90,11 +96,11 @@ final class DepartamentoWebController extends Controller
         EdificioEloquentModel $edificio,
         string $departamento,
     ): Response {
-        Gate::authorize('update', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::ESTRUCTURA_GESTIONAR]);
 
         return Inertia::render('Departamento/edit', [
             'departamento' => $this->getDepartamento->execute($edificio->id, $departamento),
-            'edificios' => $this->getOptions->execute((string) $request->user()->getAuthIdentifier()),
+            'edificios' => $this->getOptions->execute((string) $request->user()->getAuthIdentifier(), true),
         ]);
     }
 
@@ -103,7 +109,7 @@ final class DepartamentoWebController extends Controller
         EdificioEloquentModel $edificio,
         string $departamento,
     ): Response {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::ESTRUCTURA_VER]);
         $userId = (string) $request->user()->getAuthIdentifier();
 
         return Inertia::render('Departamento/show', [

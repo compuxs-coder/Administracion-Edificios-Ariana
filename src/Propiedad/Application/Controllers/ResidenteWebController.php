@@ -65,7 +65,7 @@ final class ResidenteWebController extends Controller
         Gate::authorize('create', ResidenteEloquentModel::class);
 
         return Inertia::render('Residente/create', [
-            'edificios' => $this->getOptions->buildings((string) $request->user()->getAuthIdentifier()),
+            'edificios' => $this->getOptions->buildings((string) $request->user()->getAuthIdentifier(), true),
             'edificioSeleccionado' => $request->query('edificio'),
         ]);
     }

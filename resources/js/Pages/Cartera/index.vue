@@ -3,6 +3,7 @@ import { computed, reactive } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { CarteraDetalleItem, CarteraResumen } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 type Option = { id: string, nombre: string, edificioId: string }
 const props = defineProps<{
@@ -15,6 +16,7 @@ const props = defineProps<{
   pisos: Array<Option & { torreId: string }>
   conceptos: Option[]
 }>()
+const { canAny } = useBuildingPermissions()
 
 const filters = reactive({
   edificio_id: props.filters.edificio_id ?? '', torre_id: props.filters.torre_id ?? '', piso_id: props.filters.piso_id ?? '', departamento_id: props.filters.departamento_id ?? '', propietario_id: props.filters.propietario_id ?? '', concepto_id: props.filters.concepto_id ?? '', buscar: props.filters.buscar ?? '', situacion: props.filters.situacion ?? '', estado: props.filters.estado ?? '', antiguedad: props.filters.antiguedad ?? '', periodo: props.filters.periodo ?? '', fecha: props.filters.fecha ?? '', saldo_min: props.filters.saldo_min ?? '', saldo_max: props.filters.saldo_max ?? '', orden: props.filters.orden ?? 'neto_desc',
@@ -32,7 +34,7 @@ const onBuildingChange = () => { filters.torre_id = ''; filters.piso_id = ''; fi
 
 <template>
   <UDashboardPanel id="cartera">
-    <template #header><UDashboardNavbar title="Cartera"><template #leading><UDashboardSidebarCollapse /></template><template #right><UButton icon="i-lucide-hand-coins" label="Registrar pago" @click="router.visit(route('pagos.create'))" /></template></UDashboardNavbar></template>
+    <template #header><UDashboardNavbar title="Cartera"><template #leading><UDashboardSidebarCollapse /></template><template #right><UButton v-if="canAny('pagos.registrar')" icon="i-lucide-hand-coins" label="Registrar pago" @click="router.visit(route('pagos.create'))" /></template></UDashboardNavbar></template>
     <template #body>
       <div class="flex h-full flex-col gap-5 p-4 sm:p-6">
         <UAlert color="info" description="Vista derivada de cargos, pagos y saldo a favor. No admite edición manual." icon="i-lucide-info" variant="subtle" />

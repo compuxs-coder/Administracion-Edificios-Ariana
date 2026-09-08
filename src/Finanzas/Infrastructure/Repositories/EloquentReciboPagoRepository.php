@@ -2,7 +2,6 @@
 
 namespace Src\Finanzas\Infrastructure\Repositories;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -10,6 +9,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Contracts\ReciboPagoRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoPago;
 use Src\Finanzas\Infrastructure\Models\EvidenciaPagoEloquentModel;
@@ -18,9 +19,11 @@ use Src\Finanzas\Infrastructure\Models\ReciboPagoEloquentModel;
 
 final class EloquentReciboPagoRepository implements ReciboPagoRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function get(string $userId, string $edificioId, string $pagoId): array
     {
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::COMPROBANTES_VER);
         $recibo = ReciboPagoEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->where('pago_id', $pagoId)
@@ -38,7 +41,7 @@ final class EloquentReciboPagoRepository implements ReciboPagoRepositoryInterfac
 
         try {
             return DB::transaction(function () use ($userId, $edificioId, $pagoId, $data, $archivo, &$path): array {
-                $this->authorizedEdificio($userId, $edificioId, true);
+                $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::EVIDENCIAS_GESTIONAR, true);
                 $pago = PagoEloquentModel::query()->where('edificio_id', $edificioId)->lockForUpdate()->findOrFail($pagoId);
                 if ($pago->estado !== EstadoPago::REGISTRADO) {
                     throw ValidationException::withMessages(['pago' => 'No se pueden adjuntar evidencias a un pago anulado.']);
@@ -95,7 +98,7 @@ final class EloquentReciboPagoRepository implements ReciboPagoRepositoryInterfac
 
     public function evidenceDownload(string $userId, string $edificioId, string $pagoId, string $evidenciaId): array
     {
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::COMPROBANTES_VER);
         $evidencia = EvidenciaPagoEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->where('pago_id', $pagoId)
@@ -109,9 +112,14 @@ final class EloquentReciboPagoRepository implements ReciboPagoRepositoryInterfac
         return ['path' => $evidencia->ruta_privada, 'nombre' => $evidencia->nombre_original, 'mimeType' => $evidencia->mime_type];
     }
 
-    private function authorizedEdificio(string $userId, string $edificioId, bool $lock = false): EdificioEloquentModel
+    private function authorizedEdificio(
+        string $userId,
+        string $edificioId,
+        PermisoEdificio $permission,
+        bool $lock = false,
+    ): EdificioEloquentModel
     {
-        $query = EdificioEloquentModel::query()->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+        $query = EdificioEloquentModel::query()->whereKey($this->access->buildingIds($userId, $permission));
         if ($lock) {
             $query->lockForUpdate();
         }

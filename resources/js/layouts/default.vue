@@ -5,9 +5,11 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 import UserMenu from '../components/UserMenu.vue'
 import { useAppConfig } from '../composables/useAppConfig'
 import { useFlash } from '../composables/useFlash'
+import { useBuildingPermissions } from '../composables/useBuildingPermissions'
 
 const open = ref(false)
 const appConfig = useAppConfig()
+const { canAny } = useBuildingPermissions()
 
 onMounted(() => {
   useFlash()
@@ -18,7 +20,7 @@ const navigateTo = (url: string) => {
   open.value = false
 }
 
-const links = [[{
+const links = computed<NavigationMenuItem[][]>(() => [[{
   label: 'Inicio',
   icon: 'i-lucide-house',
   to: '/dashboard',
@@ -32,48 +34,55 @@ const links = [[{
   label: 'Departamentos',
   icon: 'i-lucide-panels-top-left',
   to: '/departamentos',
-  onSelect: () => navigateTo('/departamentos')
+  onSelect: () => navigateTo('/departamentos'),
+  hidden: !canAny('estructura.ver')
 }, {
   label: 'Propietarios',
   icon: 'i-lucide-contact-round',
   to: '/propietarios',
-  onSelect: () => navigateTo('/propietarios')
+  onSelect: () => navigateTo('/propietarios'),
+  hidden: !canAny('propiedad.ver')
 }, {
   label: 'Residentes',
   icon: 'i-lucide-users',
   to: '/residentes',
-  onSelect: () => navigateTo('/residentes')
+  onSelect: () => navigateTo('/residentes'),
+  hidden: !canAny('propiedad.ver')
 }, {
   label: 'Conceptos de cobro',
   icon: 'i-lucide-circle-dollar-sign',
   to: '/conceptos',
-  onSelect: () => navigateTo('/conceptos')
+  onSelect: () => navigateTo('/conceptos'),
+  hidden: !canAny('finanzas.ver')
 }, {
   label: 'Cargos',
   icon: 'i-lucide-receipt-text',
   to: '/cargos',
-  onSelect: () => navigateTo('/cargos')
+  onSelect: () => navigateTo('/cargos'),
+  hidden: !canAny('finanzas.ver')
 }, {
   label: 'Pagos',
   icon: 'i-lucide-hand-coins',
   to: '/pagos',
-  onSelect: () => navigateTo('/pagos')
+  onSelect: () => navigateTo('/pagos'),
+  hidden: !canAny('finanzas.ver')
 }, {
   label: 'Cartera',
   icon: 'i-lucide-wallet-cards',
   to: '/cartera',
-  onSelect: () => navigateTo('/cartera')
+  onSelect: () => navigateTo('/cartera'),
+  hidden: !canAny('finanzas.ver')
 }, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',
   onSelect: () => navigateTo('/clientes')
-}]] satisfies NavigationMenuItem[][]
+}].filter(item => !item.hidden).map(({ hidden: _hidden, ...item }) => item)])
 
 const groups = computed(() => [{
   id: 'links',
   label: 'Ir a',
-  items: links.flat()
+  items: links.value.flat()
 }])
 </script>
 

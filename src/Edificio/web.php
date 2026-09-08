@@ -2,10 +2,16 @@
 
 use Illuminate\Support\Facades\Route;
 use Src\Edificio\Application\Controllers\DepartamentoWebController;
+use Src\Edificio\Application\Controllers\AccesoEdificioWebController;
 use Src\Edificio\Application\Controllers\EdificioWebController;
 use Src\Edificio\Application\Controllers\EstructuraWebController;
 
 Route::middleware('auth')->group(function () {
+    Route::get('invitaciones-edificio/{token}', [AccesoEdificioWebController::class, 'showInvitation'])
+        ->name('invitaciones-edificio.show');
+    Route::post('invitaciones-edificio/{token}/aceptar', [AccesoEdificioWebController::class, 'acceptInvitation'])
+        ->name('invitaciones-edificio.accept');
+
     Route::get('departamentos', [DepartamentoWebController::class, 'index'])
         ->name('departamentos.index');
     Route::get('departamentos/create', [DepartamentoWebController::class, 'create'])
@@ -48,6 +54,19 @@ Route::middleware('auth')->group(function () {
 
     Route::patch('edificios/{edificio}/estado', [EdificioWebController::class, 'changeStatus'])
         ->name('edificios.estado');
+    Route::get('edificios/{edificio}/accesos', [AccesoEdificioWebController::class, 'index'])
+        ->name('edificios.accesos.index');
+    Route::post('edificios/{edificio}/invitaciones', [AccesoEdificioWebController::class, 'invite'])
+        ->name('edificios.invitaciones.store');
+    Route::patch('edificios/{edificio}/invitaciones/{invitacion}/revocar', [AccesoEdificioWebController::class, 'revokeInvitation'])
+        ->whereUuid('invitacion')
+        ->name('edificios.invitaciones.revoke');
+    Route::put('edificios/{edificio}/miembros/{usuario}/roles', [AccesoEdificioWebController::class, 'updateRoles'])
+        ->whereUuid('usuario')
+        ->name('edificios.miembros.roles.update');
+    Route::delete('edificios/{edificio}/miembros/{usuario}', [AccesoEdificioWebController::class, 'revokeMember'])
+        ->whereUuid('usuario')
+        ->name('edificios.miembros.revoke');
     Route::resource('edificios', EdificioWebController::class)
         ->except('destroy');
 });

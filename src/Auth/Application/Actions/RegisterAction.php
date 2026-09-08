@@ -17,7 +17,7 @@ class RegisterAction
     {
         $user = new User(
             name: $data['name'],
-            email: $data['email'],
+            email: mb_strtolower(trim($data['email'])),
             password: Hash::make($data['password'])
         );
 

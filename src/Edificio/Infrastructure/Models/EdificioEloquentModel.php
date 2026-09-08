@@ -43,7 +43,7 @@ final class EdificioEloquentModel extends Model
             $this->qualifiedTable('edificio_usuario'),
             'edificio_id',
             'user_id',
-        )->withTimestamps();
+        )->wherePivotNull('revoked_at')->withPivot(['creado_por_user_id', 'revocado_por_user_id', 'revoked_at'])->withTimestamps();
     }
 
     /** @return HasMany<TorreEloquentModel, $this> */

@@ -13,13 +13,13 @@ interface PropietarioRepositoryInterface
     public function findForUser(string $userId, string $propietarioId): ?array;
 
     /** @return list<array<string, mixed>> */
-    public function buildingOptionsForUser(string $userId): array;
+    public function buildingOptionsForUser(string $userId, bool $forManagement): array;
 
     /** @return list<array<string, mixed>> */
     public function activeOptionsForUser(string $userId): array;
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
-    public function createForEdificio(string $edificioId, array $data): array;
+    public function createForEdificio(string $userId, string $edificioId, array $data): array;
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function update(string $userId, string $propietarioId, array $data): array;

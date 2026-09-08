@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Application\Actions\ChangeConceptoCobroStatusAction;
 use Src\Finanzas\Application\Actions\CreateConceptoCobroAction;
 use Src\Finanzas\Application\Actions\CreateTarifaConceptoAction;
@@ -36,11 +38,15 @@ final class ConceptoCobroWebController extends Controller
         private readonly UpdateConceptoCobroAction $updateConcepto,
         private readonly ChangeConceptoCobroStatusAction $changeStatus,
         private readonly CreateTarifaConceptoAction $createTarifa,
+        private readonly AccesoEdificioService $access,
     ) {}
 
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::FINANZAS_VER,
+        ), 403);
         $filters = $request->validate([
             'buscar' => ['nullable', 'string', 'max:100'],
             'edificio_id' => ['nullable', 'uuid'],
@@ -71,10 +77,16 @@ final class ConceptoCobroWebController extends Controller
 
     public function create(Request $request): Response
     {
-        Gate::authorize('create', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::CONCEPTOS_GESTIONAR,
+        ), 403);
 
         return Inertia::render('Concepto/create', [
-            'edificios' => $this->getOptions->buildings((string) $request->user()->getAuthIdentifier()),
+            'edificios' => $this->getOptions->buildings(
+                (string) $request->user()->getAuthIdentifier(),
+                PermisoEdificio::CONCEPTOS_GESTIONAR,
+            ),
             'edificioSeleccionado' => $request->query('edificio'),
         ]);
     }
@@ -97,7 +109,7 @@ final class ConceptoCobroWebController extends Controller
         EdificioEloquentModel $edificio,
         ConceptoCobroEloquentModel $concepto,
     ): Response {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::FINANZAS_VER]);
 
         return Inertia::render('Concepto/show', [
             'concepto' => $this->getConcepto->execute(
@@ -113,7 +125,7 @@ final class ConceptoCobroWebController extends Controller
         EdificioEloquentModel $edificio,
         ConceptoCobroEloquentModel $concepto,
     ): Response {
-        Gate::authorize('update', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::CONCEPTOS_GESTIONAR]);
 
         return Inertia::render('Concepto/edit', [
             'concepto' => $this->getConcepto->execute(

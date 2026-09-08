@@ -3,10 +3,14 @@
 namespace Src\Edificio\Application\Policies;
 
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 
 final class EdificioPolicy
 {
+    public function __construct(private readonly AccesoEdificioService $access) {}
+
     public function viewAny(UserEloquentModel $user): bool
     {
         return true;
@@ -19,23 +23,27 @@ final class EdificioPolicy
 
     public function view(UserEloquentModel $user, EdificioEloquentModel $edificio): bool
     {
-        return $this->isAssigned($user, $edificio);
+        return $this->access->allows((string) $user->getKey(), $edificio->id, PermisoEdificio::EDIFICIO_VER);
     }
 
     public function update(UserEloquentModel $user, EdificioEloquentModel $edificio): bool
     {
-        return $this->isAssigned($user, $edificio);
+        return $this->access->allows((string) $user->getKey(), $edificio->id, PermisoEdificio::EDIFICIO_EDITAR);
     }
 
     public function changeStatus(UserEloquentModel $user, EdificioEloquentModel $edificio): bool
     {
-        return $this->isAssigned($user, $edificio);
+        return $this->access->allows((string) $user->getKey(), $edificio->id, PermisoEdificio::EDIFICIO_CAMBIAR_ESTADO);
     }
 
-    private function isAssigned(
+    public function access(
         UserEloquentModel $user,
         EdificioEloquentModel $edificio,
+        PermisoEdificio|string $permission,
     ): bool {
-        return $edificio->usuarios()->whereKey($user->getKey())->exists();
+        $permission = is_string($permission) ? PermisoEdificio::tryFrom($permission) : $permission;
+
+        return $permission !== null
+            && $this->access->allows((string) $user->getKey(), $edificio->id, $permission);
     }
 }

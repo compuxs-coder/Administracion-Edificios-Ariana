@@ -3,10 +3,14 @@
 namespace Src\Propiedad\Application\Policies;
 
 use Src\Auth\Infrastructure\Models\UserEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
 
 final class ResidentePolicy
 {
+    public function __construct(private readonly AccesoEdificioService $access) {}
+
     public function viewAny(UserEloquentModel $user): bool
     {
         return true;
@@ -14,14 +18,15 @@ final class ResidentePolicy
 
     public function create(UserEloquentModel $user): bool
     {
-        return true;
+        return $this->access->allowsAny((string) $user->getKey(), PermisoEdificio::PROPIEDAD_GESTIONAR);
     }
 
     public function view(UserEloquentModel $user, ResidenteEloquentModel $residente): bool
     {
-        return $residente->edificios()
-            ->whereHas('usuarios', static fn ($query) => $query->whereKey($user->getKey()))
-            ->exists();
+        return array_intersect(
+            $residente->edificios()->get()->modelKeys(),
+            $this->access->buildingIds((string) $user->getKey(), PermisoEdificio::PROPIEDAD_VER),
+        ) !== [];
     }
 
     public function update(UserEloquentModel $user, ResidenteEloquentModel $residente): bool
@@ -36,18 +41,16 @@ final class ResidentePolicy
 
     private function canManageGlobally(UserEloquentModel $user, ResidenteEloquentModel $residente): bool
     {
-        if (! $this->view($user, $residente)
-            || $residente->edificios()
-                ->whereDoesntHave('usuarios', static fn ($query) => $query->whereKey($user->getKey()))
-                ->exists()) {
-            return false;
+        $buildingIds = $residente->edificios()->get()->modelKeys();
+        $propietario = $residente->tercero?->propietario()->first();
+        if ($propietario !== null) {
+            $buildingIds = array_values(array_unique([...$buildingIds, ...$propietario->edificios()->get()->modelKeys()]));
         }
 
-        $propietario = $residente->tercero?->propietario()->first();
-
-        return $propietario === null
-            || ! $propietario->edificios()
-                ->whereDoesntHave('usuarios', static fn ($query) => $query->whereKey($user->getKey()))
-                ->exists();
+        return $this->access->allowsEvery(
+            (string) $user->getKey(),
+            $buildingIds,
+            PermisoEdificio::PROPIEDAD_GESTIONAR,
+        );
     }
 }

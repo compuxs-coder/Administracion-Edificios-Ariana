@@ -2,6 +2,8 @@
 
 namespace Src\Finanzas\Domain\Contracts;
 
+use Src\Edificio\Domain\Enums\PermisoEdificio;
+
 interface CargoRepositoryInterface
 {
     /** @param array<string, mixed> $filters @return array<string, mixed> */
@@ -25,5 +27,5 @@ interface CargoRepositoryInterface
     public function automatic(string $periodo, ?string $edificioId = null, ?string $conceptoId = null, bool $dryRun = false): array;
 
     /** @return array<string, mixed> */
-    public function options(string $userId): array;
+    public function options(string $userId, PermisoEdificio $permission = PermisoEdificio::FINANZAS_VER): array;
 }

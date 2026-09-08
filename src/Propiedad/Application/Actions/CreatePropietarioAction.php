@@ -9,8 +9,8 @@ final readonly class CreatePropietarioAction
     public function __construct(private PropietarioRepositoryInterface $repository) {}
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
-    public function execute(string $edificioId, array $data): array
+    public function execute(string $userId, string $edificioId, array $data): array
     {
-        return $this->repository->createForEdificio($edificioId, $data);
+        return $this->repository->createForEdificio($userId, $edificioId, $data);
     }
 }

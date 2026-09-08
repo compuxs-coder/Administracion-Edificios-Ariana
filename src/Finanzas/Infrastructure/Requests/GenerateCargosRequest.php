@@ -3,6 +3,7 @@
 namespace Src\Finanzas\Infrastructure\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 
 final class GenerateCargosRequest extends FormRequest
@@ -12,7 +13,7 @@ final class GenerateCargosRequest extends FormRequest
         $edificio = $this->route('edificio');
 
         return $edificio instanceof EdificioEloquentModel
-            && ($this->user()?->can('update', $edificio) ?? false);
+            && ($this->user()?->can('access', [$edificio, PermisoEdificio::CARGOS_GENERAR]) ?? false);
     }
 
     /** @return array<string, mixed> */

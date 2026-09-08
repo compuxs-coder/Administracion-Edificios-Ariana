@@ -3,6 +3,7 @@
 namespace Src\Finanzas\Infrastructure\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
@@ -15,7 +16,7 @@ final class SavePagoRequest extends FormRequest
         $edificio = $this->route('edificio');
 
         return $edificio instanceof EdificioEloquentModel
-            && ($this->user()?->can('update', $edificio) ?? false);
+            && ($this->user()?->can('access', [$edificio, PermisoEdificio::PAGOS_REGISTRAR]) ?? false);
     }
 
     /** @return array<string, mixed> */

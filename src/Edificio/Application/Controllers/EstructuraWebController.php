@@ -14,6 +14,7 @@ use Src\Edificio\Application\Actions\SaveAnexoAction;
 use Src\Edificio\Application\Actions\SavePisoAction;
 use Src\Edificio\Application\Actions\SaveTorreAction;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Domain\Enums\TipoAnexo;
 use Src\Edificio\Domain\Enums\TipoElementoEstructura;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
@@ -35,7 +36,7 @@ final class EstructuraWebController extends Controller
 
     public function index(EdificioEloquentModel $edificio): Response
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::ESTRUCTURA_VER]);
 
         return Inertia::render('Edificio/estructura', [
             'edificio' => $this->getEdificio->execute($edificio->id)->toArray(),

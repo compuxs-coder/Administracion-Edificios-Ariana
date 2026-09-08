@@ -67,7 +67,7 @@ final class PropietarioWebController extends Controller
         Gate::authorize('create', PropietarioEloquentModel::class);
 
         return Inertia::render('Propietario/create', [
-            'edificios' => $this->getOptions->buildings((string) $request->user()->getAuthIdentifier()),
+            'edificios' => $this->getOptions->buildings((string) $request->user()->getAuthIdentifier(), true),
             'edificioSeleccionado' => $request->query('edificio'),
         ]);
     }
@@ -76,7 +76,11 @@ final class PropietarioWebController extends Controller
         SavePropietarioRequest $request,
         EdificioEloquentModel $edificio,
     ): RedirectResponse {
-        $created = $this->createPropietario->execute($edificio->id, $request->validated());
+        $created = $this->createPropietario->execute(
+            (string) $request->user()->getAuthIdentifier(),
+            $edificio->id,
+            $request->validated(),
+        );
 
         return redirect()
             ->route('propietarios.show', $created['id'])

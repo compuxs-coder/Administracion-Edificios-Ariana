@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { Pago } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{ pago: Pago }>()
+const { can } = useBuildingPermissions()
 const cancelOpen = ref(false)
 const motivo = ref('')
 const loading = ref(false)
@@ -28,9 +30,9 @@ const applyCredit = () => router.post(route('pagos.apply-credit', [props.pago.ed
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
             <div class="flex gap-2">
-              <UButton v-if="pago.recibo" icon="i-lucide-receipt-text" label="Ver recibo" variant="outline" @click="router.visit(route('recibos.show', [pago.edificioId, pago.id]))" />
-              <UButton v-if="pago.estado === 'registrado' && pago.saldoFavor !== '0.0000'" icon="i-lucide-scan-line" label="Aplicar saldo a favor" variant="outline" @click="applyCredit" />
-            <UButton v-if="pago.estado === 'registrado'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" />
+              <UButton v-if="can('comprobantes.ver', pago.edificioId) && pago.recibo" icon="i-lucide-receipt-text" label="Ver recibo" variant="outline" @click="router.visit(route('recibos.show', [pago.edificioId, pago.id]))" />
+              <UButton v-if="can('pagos.aplicar_saldo', pago.edificioId) && pago.estado === 'registrado' && pago.saldoFavor !== '0.0000'" icon="i-lucide-scan-line" label="Aplicar saldo a favor" variant="outline" @click="applyCredit" />
+            <UButton v-if="can('pagos.anular', pago.edificioId) && pago.estado === 'registrado'" color="error" icon="i-lucide-ban" label="Anular" variant="outline" @click="cancelOpen = true" />
           </div>
         </template>
       </UDashboardNavbar>

@@ -13,7 +13,7 @@ interface ResidenteRepositoryInterface
     public function findForUser(string $userId, string $residenteId): ?array;
 
     /** @return list<array<string, mixed>> */
-    public function buildingOptionsForUser(string $userId): array;
+    public function buildingOptionsForUser(string $userId, bool $forManagement): array;
 
     /** @return list<array<string, mixed>> */
     public function activeOptionsForUser(string $userId): array;

@@ -3,13 +3,34 @@ import { computed, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { Cargo, CargoOption, EstadoCargo, OrigenCargo } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
-  cargos: { data: Cargo[], meta: { total: number, currentPage: number, lastPage: number, perPage: number } }
-  filters: { edificio_id?: string | null, departamento_id?: string | null, concepto_cobro_id?: string | null, periodo?: string | null, estado?: EstadoCargo | null, origen?: OrigenCargo | null }
-  edificios: Array<{ id: string, nombre: string }>
-  conceptos: CargoOption[]
-  departamentos: Array<{ id: string, edificioId: string, codigo: string, nombre: string }>
+    cargos: {
+        data: Cargo[]
+        meta: {
+            total: number
+            currentPage: number
+            lastPage: number
+            perPage: number
+        }
+    }
+    filters: {
+        edificio_id?: string | null
+        departamento_id?: string | null
+        concepto_cobro_id?: string | null
+        periodo?: string | null
+        estado?: EstadoCargo | null
+        origen?: OrigenCargo | null
+    }
+    edificios: Array<{ id: string; nombre: string }>
+    conceptos: CargoOption[]
+    departamentos: Array<{
+        id: string
+        edificioId: string
+        codigo: string
+        nombre: string
+    }>
 }>()
 const edificioId = ref(props.filters.edificio_id ?? '')
 const departamentoId = ref(props.filters.departamento_id ?? '')
@@ -18,12 +39,187 @@ const periodo = ref(props.filters.periodo ?? '')
 const estado = ref(props.filters.estado ?? '')
 const origen = ref(props.filters.origen ?? '')
 const loading = ref(false)
-const concepts = computed(() => props.conceptos.filter(item => !edificioId.value || item.edificioId === edificioId.value).map(item => ({ label: `${item.codigo} · ${item.nombre}`, value: item.id })))
-const departments = computed(() => props.departamentos.filter(item => !edificioId.value || item.edificioId === edificioId.value).map(item => ({ label: `${item.codigo} · ${item.nombre}`, value: item.id })))
-const reload = (page = 1) => router.get(route('cargos.index'), { edificio_id: edificioId.value || undefined, departamento_id: departamentoId.value || undefined, concepto_cobro_id: conceptoId.value || undefined, periodo: periodo.value || undefined, estado: estado.value || undefined, origen: origen.value || undefined, page }, { preserveState: true, preserveScroll: true, replace: true, onStart: () => { loading.value = true }, onFinish: () => { loading.value = false } })
+const { canAny } = useBuildingPermissions()
+const concepts = computed(() =>
+    props.conceptos
+        .filter((item) => !edificioId.value || item.edificioId === edificioId.value)
+        .map((item) => ({
+            label: `${item.codigo} · ${item.nombre}`,
+            value: item.id,
+        })),
+)
+const departments = computed(() =>
+    props.departamentos
+        .filter((item) => !edificioId.value || item.edificioId === edificioId.value)
+        .map((item) => ({
+            label: `${item.codigo} · ${item.nombre}`,
+            value: item.id,
+        })),
+)
+const reload = (page = 1) =>
+    router.get(
+        route('cargos.index'),
+        {
+            edificio_id: edificioId.value || undefined,
+            departamento_id: departamentoId.value || undefined,
+            concepto_cobro_id: conceptoId.value || undefined,
+            periodo: periodo.value || undefined,
+            estado: estado.value || undefined,
+            origen: origen.value || undefined,
+            page,
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            onStart: () => {
+                loading.value = true
+            },
+            onFinish: () => {
+                loading.value = false
+            },
+        },
+    )
+const changeBuilding = () => {
+    departamentoId.value = ''
+    conceptoId.value = ''
+    reload()
+}
 const money = (value: string) => `$${value}`
 </script>
 
 <template>
-  <UDashboardPanel id="cargos"><template #header><UDashboardNavbar title="Cargos"><template #leading><UDashboardSidebarCollapse /></template><template #right><div class="flex gap-2"><UButton color="neutral" icon="i-lucide-plus" label="Manual" variant="outline" @click="router.visit(route('cargos.create'))" /><UButton icon="i-lucide-wand-sparkles" label="Generar cargos" @click="router.visit(route('cargos.generate'))" /></div></template></UDashboardNavbar></template><template #body><div class="flex h-full flex-col gap-5 p-4 sm:p-6"><div class="grid gap-3 xl:grid-cols-3"><USelect v-model="edificioId" :items="[{ label: 'Todos los edificios', value: '' }, ...edificios.map(item => ({ label: item.nombre, value: item.id }))]" placeholder="Edificio" size="xl" @update:model-value="departamentoId = ''; conceptoId = ''; reload()" /><USelect v-model="departamentoId" :items="[{ label: 'Todos los departamentos', value: '' }, ...departments]" placeholder="Departamento" size="xl" @update:model-value="reload()" /><USelect v-model="conceptoId" :items="[{ label: 'Todos los conceptos', value: '' }, ...concepts]" placeholder="Concepto" size="xl" @update:model-value="reload()" /><UInput v-model="periodo" type="month" size="xl" aria-label="Período" @change="reload()" /><USelect v-model="estado" :items="[{ label: 'Todos los estados', value: '' }, { label: 'Pendiente', value: 'pendiente' }, { label: 'Parcial', value: 'parcial' }, { label: 'Pagado', value: 'pagado' }, { label: 'Anulado', value: 'anulado' }]" size="xl" @update:model-value="reload()" /><USelect v-model="origen" :items="[{ label: 'Todos los orígenes', value: '' }, { label: 'Automático', value: 'automatico' }, { label: 'Manual', value: 'manual' }]" size="xl" @update:model-value="reload()" /></div><div class="overflow-x-auto rounded-xl border border-default" :class="loading ? 'opacity-60' : ''"><table class="w-full min-w-6xl text-left text-sm"><thead class="bg-elevated/50 text-xs uppercase tracking-wide text-muted"><tr><th class="px-4 py-3">Período</th><th class="px-4 py-3">Departamento</th><th class="px-4 py-3">Concepto</th><th class="px-4 py-3">Valor</th><th class="px-4 py-3">Saldo</th><th class="px-4 py-3">Vencimiento</th><th class="px-4 py-3">Estado</th><th class="px-4 py-3">Origen</th><th class="px-4 py-3" /></tr></thead><tbody class="divide-y divide-default"><tr v-for="cargo in cargos.data" :key="cargo.id"><td class="px-4 py-3 font-mono text-highlighted">{{ cargo.periodo }}</td><td class="px-4 py-3 font-medium text-highlighted">{{ cargo.departamento }}</td><td class="px-4 py-3"><p class="text-highlighted">{{ cargo.concepto }}</p><p class="text-xs text-muted">{{ cargo.codigoConcepto }}</p></td><td class="px-4 py-3 font-mono">{{ money(cargo.valorOriginal) }}</td><td class="px-4 py-3 font-mono">{{ money(cargo.saldo) }}</td><td class="px-4 py-3 text-muted">{{ cargo.fechaVencimiento }}</td><td class="px-4 py-3"><UBadge :color="cargo.estado === 'pendiente' ? 'warning' : cargo.estado === 'anulado' ? 'neutral' : 'success'" :label="cargo.estado" variant="subtle" /></td><td class="px-4 py-3 text-muted">{{ cargo.origen }}</td><td class="px-4 py-3 text-right"><UButton color="neutral" icon="i-lucide-eye" variant="ghost" aria-label="Ver cargo" @click="router.visit(route('cargos.show', [cargo.edificioId, cargo.id]))" /></td></tr><tr v-if="!cargos.data.length"><td colspan="9" class="px-4 py-12 text-center text-muted">No hay cargos con los filtros seleccionados.</td></tr></tbody></table></div><div class="mt-auto flex items-center justify-between border-t border-default pt-4"><p class="text-sm text-muted">{{ cargos.meta.total }} cargo(s) · página {{ cargos.meta.currentPage }} de {{ cargos.meta.lastPage }}</p><div class="flex gap-2"><UButton color="neutral" label="Anterior" variant="outline" :disabled="cargos.meta.currentPage <= 1 || loading" @click="reload(cargos.meta.currentPage - 1)" /><UButton color="neutral" label="Siguiente" variant="outline" :disabled="cargos.meta.currentPage >= cargos.meta.lastPage || loading" @click="reload(cargos.meta.currentPage + 1)" /></div></div></div></template></UDashboardPanel>
+    <UDashboardPanel id="cargos"
+        ><template #header
+            ><UDashboardNavbar title="Cargos"
+                ><template #leading><UDashboardSidebarCollapse /></template
+                ><template #right
+                    ><div class="flex gap-2">
+                        <UButton v-if="canAny('cargos.crear')" color="neutral" icon="i-lucide-plus" label="Manual" variant="outline" @click="router.visit(route('cargos.create'))" /><UButton
+                            v-if="canAny('cargos.generar')"
+                            icon="i-lucide-wand-sparkles"
+                            label="Generar cargos"
+                            @click="router.visit(route('cargos.generate'))"
+                        /></div></template></UDashboardNavbar></template
+        ><template #body
+            ><div class="flex h-full flex-col gap-5 p-4 sm:p-6">
+                <div class="grid gap-3 xl:grid-cols-3">
+                    <USelect
+                        v-model="edificioId"
+                        :items="[
+                            { label: 'Todos los edificios', value: '' },
+                            ...edificios.map((item) => ({
+                                label: item.nombre,
+                                value: item.id,
+                            })),
+                        ]"
+                        placeholder="Edificio"
+                        size="xl"
+                        @update:model-value="changeBuilding"
+                    /><USelect
+                        v-model="departamentoId"
+                        :items="[{ label: 'Todos los departamentos', value: '' }, ...departments]"
+                        placeholder="Departamento"
+                        size="xl"
+                        @update:model-value="reload()"
+                    /><USelect v-model="conceptoId" :items="[{ label: 'Todos los conceptos', value: '' }, ...concepts]" placeholder="Concepto" size="xl" @update:model-value="reload()" /><UInput
+                        v-model="periodo"
+                        type="month"
+                        size="xl"
+                        aria-label="Período"
+                        @change="reload()"
+                    /><USelect
+                        v-model="estado"
+                        :items="[
+                            { label: 'Todos los estados', value: '' },
+                            { label: 'Pendiente', value: 'pendiente' },
+                            { label: 'Parcial', value: 'parcial' },
+                            { label: 'Pagado', value: 'pagado' },
+                            { label: 'Anulado', value: 'anulado' },
+                        ]"
+                        size="xl"
+                        @update:model-value="reload()"
+                    /><USelect
+                        v-model="origen"
+                        :items="[
+                            { label: 'Todos los orígenes', value: '' },
+                            { label: 'Automático', value: 'automatico' },
+                            { label: 'Manual', value: 'manual' },
+                        ]"
+                        size="xl"
+                        @update:model-value="reload()"
+                    />
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-default" :class="loading ? 'opacity-60' : ''">
+                    <table class="w-full min-w-6xl text-left text-sm">
+                        <thead class="bg-elevated/50 text-xs uppercase tracking-wide text-muted">
+                            <tr>
+                                <th class="px-4 py-3">Período</th>
+                                <th class="px-4 py-3">Departamento</th>
+                                <th class="px-4 py-3">Concepto</th>
+                                <th class="px-4 py-3">Valor</th>
+                                <th class="px-4 py-3">Saldo</th>
+                                <th class="px-4 py-3">Vencimiento</th>
+                                <th class="px-4 py-3">Estado</th>
+                                <th class="px-4 py-3">Origen</th>
+                                <th class="px-4 py-3" />
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-default">
+                            <tr v-for="cargo in cargos.data" :key="cargo.id">
+                                <td class="px-4 py-3 font-mono text-highlighted">
+                                    {{ cargo.periodo }}
+                                </td>
+                                <td class="px-4 py-3 font-medium text-highlighted">
+                                    {{ cargo.departamento }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <p class="text-highlighted">
+                                        {{ cargo.concepto }}
+                                    </p>
+                                    <p class="text-xs text-muted">
+                                        {{ cargo.codigoConcepto }}
+                                    </p>
+                                </td>
+                                <td class="px-4 py-3 font-mono">
+                                    {{ money(cargo.valorOriginal) }}
+                                </td>
+                                <td class="px-4 py-3 font-mono">
+                                    {{ money(cargo.saldo) }}
+                                </td>
+                                <td class="px-4 py-3 text-muted">
+                                    {{ cargo.fechaVencimiento }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <UBadge :color="cargo.estado === 'pendiente' ? 'warning' : cargo.estado === 'anulado' ? 'neutral' : 'success'" :label="cargo.estado" variant="subtle" />
+                                </td>
+                                <td class="px-4 py-3 text-muted">
+                                    {{ cargo.origen }}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <UButton color="neutral" icon="i-lucide-eye" variant="ghost" aria-label="Ver cargo" @click="router.visit(route('cargos.show', [cargo.edificioId, cargo.id]))" />
+                                </td>
+                            </tr>
+                            <tr v-if="!cargos.data.length">
+                                <td colspan="9" class="px-4 py-12 text-center text-muted">No hay cargos con los filtros seleccionados.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-auto flex items-center justify-between border-t border-default pt-4">
+                    <p class="text-sm text-muted">
+                        {{ cargos.meta.total }} cargo(s) · página {{ cargos.meta.currentPage }} de
+                        {{ cargos.meta.lastPage }}
+                    </p>
+                    <div class="flex gap-2">
+                        <UButton color="neutral" label="Anterior" variant="outline" :disabled="cargos.meta.currentPage <= 1 || loading" @click="reload(cargos.meta.currentPage - 1)" /><UButton
+                            color="neutral"
+                            label="Siguiente"
+                            variant="outline"
+                            :disabled="cargos.meta.currentPage >= cargos.meta.lastPage || loading"
+                            @click="reload(cargos.meta.currentPage + 1)"
+                        />
+                    </div>
+                </div></div></template
+    ></UDashboardPanel>
 </template>

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type { EstadoPropietario, Propietario, TipoPersona } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
   propietarios: { data: Propietario[], meta: { total: number, currentPage: number, lastPage: number, perPage: number } }
@@ -18,6 +19,7 @@ const statusLoading = ref(false)
 const statusOpen = ref(false)
 const statusError = ref('')
 const selected = ref<Propietario | null>(null)
+const { canAny } = useBuildingPermissions()
 let timer: ReturnType<typeof setTimeout> | undefined
 
 const edificioItems = computed(() => [{ label: 'Todos los edificios', value: '' }, ...props.edificios.map(item => ({ label: item.nombre, value: item.id }))])
@@ -65,7 +67,7 @@ const changeStatus = () => {
     <template #header>
       <UDashboardNavbar title="Propietarios">
         <template #leading><UDashboardSidebarCollapse /></template>
-        <template #right><UButton icon="i-lucide-plus" label="Nuevo propietario" @click="router.visit(route('propietarios.create'))" /></template>
+        <template #right><UButton v-if="canAny('propiedad.gestionar')" icon="i-lucide-plus" label="Nuevo propietario" @click="router.visit(route('propietarios.create'))" /></template>
       </UDashboardNavbar>
     </template>
     <template #body>

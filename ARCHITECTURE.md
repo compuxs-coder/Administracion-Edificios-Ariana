@@ -21,7 +21,22 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 7. Las pruebas deberán demostrar que un usuario asignado a un edificio no puede leer ni modificar información de otro.
 8. Las tablas globales, como el catálogo de edificios y la identidad de usuarios, se distinguirán expresamente de las tablas con alcance por edificio.
 
-La asignación inicial se implementa mediante `edificio_usuario`. El creador recibe acceso al edificio y las policies validan esa asignación. Las relaciones de ocupación no conceden acceso; los roles administrativos detallados continúan pendientes.
+`edificio_usuario` es la membresía canónica y su revocación es lógica. El creador recibe el rol `administrador`; las policies y consultas validan permisos efectivos, no la mera existencia de una membresía. Las relaciones de propiedad u ocupación no conceden acceso.
+
+## Identidad y acceso por edificio
+
+ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
+
+1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
+2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
+3. Los 19 permisos se agrupan en edificio, miembros, estructura, propiedad y finanzas. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, cargos, pagos, comprobantes y evidencias; `consulta` sólo dispone de lectura.
+5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
+6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
+7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
+8. Toda creación, invitación, aceptación, cambio de roles y revocación genera un evento inmutable. La base impide eliminar membresías y dejar un edificio sin administrador.
+9. Los controllers y Form Requests aplican autorización, mientras los repositorios vuelven a filtrar o validar el edificio. La visibilidad frontend es sólo una ayuda de interfaz y no sustituye estas defensas.
+10. Los procesos programados de generación de cargos pueden operar sin actor; ningún flujo HTTP utiliza ese bypass técnico.
 
 ## Estructura física
 
@@ -84,7 +99,7 @@ ETAPA 10 incorpora residentes dentro de `Propiedad`, porque identidad, titularid
 - Los tipos mínimos son `propietario_ocupante`, `arrendatario` y `otro`. El propietario ocupante requiere una titularidad vigente de la misma identidad al inicio, y un guard diferido impide que cambios posteriores reescriban esa correspondencia histórica.
 - Cada ocupación congela nombre e identificación. Finalizarla conserva la fila; las ocupaciones finalizadas y sus datos de origen no se editan ni eliminan.
 - Sólo edificio, departamento y residente activos admiten una nueva ocupación. Un residente o departamento con ocupaciones activas no puede inactivarse.
-- Residente no es un usuario ni un rol de autorización. Las consultas y cambios siguen delimitados por `edificio_usuario`.
+- Residente no es un usuario ni un rol de autorización. Las consultas y cambios siguen delimitados por permisos efectivos del usuario en cada edificio.
 - Modificar una identidad compartida exige acceso a todos los edificios vinculados por sus perfiles de propietario y residente.
 
 ## Finanzas: conceptos y tarifas
@@ -149,7 +164,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 | Área | Conceptos que deben diseñarse en conjunto |
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
-| Identidad y acceso | Usuarios, roles, permisos y alcance por edificio |
+| Identidad y acceso | Usuarios, roles múltiples, permisos, invitaciones y auditoría por edificio implementados |
 | Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
@@ -159,7 +174,6 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 
 ## Decisiones pendientes
 
-- Definir roles y permisos específicos dentro de cada edificio.
 - Extender los perfiles de la identidad reutilizable cuando se incorporen proveedores u otros terceros.
 - Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
 - Definir requerimientos mínimos de auditoría y conservación documental.
@@ -212,6 +226,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, Propiedad y Finanzas (`conceptos_cobro`, `tarifas_concepto`, `tarifa_departamentos`) pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad y Finanzas pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, estructura física, propietarios, residentes con ocupación histórica y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -46,7 +46,56 @@ La aplicación conserva dos flujos:
 - Web: sesión Laravel, protección CSRF y regeneración de sesión.
 - API: tokens personales de Laravel Sanctum.
 
-Auth y usuarios son infraestructura reutilizable. Edificios aplica una policy basada en la asignación explícita `edificio_usuario`; los roles y permisos detallados por edificio continúan pendientes.
+Auth y `public.users` son infraestructura reutilizable. La autorización administrativa se resuelve mediante membresías, roles y permisos con alcance por edificio. Propietarios, residentes y terceros no son cuentas de usuario ni conceden acceso.
+
+## Acceso por edificio
+
+`edificio_usuario` conserva la membresía canónica y `edificio_usuario_roles` permite asignar varios roles a esa membresía. Una membresía revocada no aporta permisos aunque conserve sus asignaciones para trazabilidad.
+
+Roles de sistema:
+
+| Rol | Alcance |
+|---|---|
+| `administrador` | Los 19 permisos y administración de miembros |
+| `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
+| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes y evidencias |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas y comprobantes |
+
+Permisos:
+
+```text
+edificio.ver                    edificio.editar                 edificio.cambiar_estado
+miembros.ver                    miembros.gestionar
+estructura.ver                  estructura.gestionar
+propiedad.ver                   propiedad.gestionar
+finanzas.ver                    conceptos.gestionar
+cargos.generar                  cargos.crear                     cargos.anular
+pagos.registrar                 pagos.aplicar_saldo              pagos.anular
+comprobantes.ver                evidencias.gestionar
+```
+
+Reglas de seguridad:
+
+- El permiso efectivo es la unión de los roles activos del usuario en el edificio consultado; no se propaga a otros edificios.
+- Policies, gates y Form Requests protegen las rutas. Los repositorios filtran listados y revalidan operaciones por el permiso exacto.
+- Sólo `miembros.gestionar`, actualmente exclusivo de administradores, permite invitar, cambiar roles o revocar acceso.
+- Las invitaciones normalizan el correo, guardan SHA-256 del token, vencen en 72 horas y exigen sesión con el correo invitado. Login y registro preservan la URL solicitada.
+- Revocar una membresía es lógico. Una invitación posterior puede reactivarla con un nuevo rol.
+- No se puede eliminar una membresía ni retirar o modificar el último rol administrador. Los identificadores de una membresía son inmutables.
+- `eventos_acceso_edificio` registra los cambios de acceso y PostgreSQL impide actualizar o eliminar su historial.
+- `auth.access.byBuilding` se comparte con Inertia para navegación y controles visuales; esta información no sustituye la autorización backend.
+
+Rutas principales:
+
+```text
+GET     /edificios/{edificio}/accesos
+POST    /edificios/{edificio}/invitaciones
+PATCH   /edificios/{edificio}/invitaciones/{invitacion}/revocar
+PUT     /edificios/{edificio}/miembros/{usuario}/roles
+DELETE  /edificios/{edificio}/miembros/{usuario}
+GET     /invitaciones-edificio/{token}
+POST    /invitaciones-edificio/{token}/aceptar
+```
 
 ## PostgreSQL y esquema privado
 
@@ -61,6 +110,7 @@ Durante la transición:
 - Las tablas nuevas sin calificar se crearán en `administracion_edificios`.
 - El repositorio de migraciones continúa en `public.migrations`.
 - `edificios` y `edificio_usuario` residen en `administracion_edificios`.
+- Roles, permisos, asignaciones de roles, invitaciones y eventos de acceso residen en `administracion_edificios`; `public.users` permanece como catálogo global.
 - Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
 - Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
@@ -79,9 +129,9 @@ El contexto `src/Edificio` implementa entidad, estado de dominio, repositorio, m
 
 Reglas actuales:
 
-- El creador queda asignado al edificio dentro de la misma transacción.
-- El listado sólo devuelve edificios asignados al usuario autenticado.
-- La consulta, actualización y modificación de estado requieren una asignación existente.
+- El creador queda asignado como `administrador` dentro de la misma transacción.
+- El listado sólo devuelve edificios donde el usuario tiene `edificio.ver`.
+- Consulta, actualización y modificación de estado requieren respectivamente `edificio.ver`, `edificio.editar` y `edificio.cambiar_estado`.
 - La interfaz no acepta eliminación física; utiliza los estados `activo` e `inactivo`.
 - El RUC es opcional, pero no puede repetirse cuando está informado.
 - La asignación referencia `public.users` mientras Auth permanezca como infraestructura heredada reutilizable.
@@ -160,8 +210,8 @@ Reglas de negocio:
 - Finalizar o transferir cierra las filas anteriores; nunca las elimina.
 - PostgreSQL serializa operaciones por departamento y rechaza solapamientos, sobreparticipación, mutación histórica, borrado y titularidades activas de propietarios inactivos.
 - La identidad histórica queda congelada dentro de cada titularidad.
-- Sólo usuarios asignados al edificio pueden consultar o modificar sus relaciones.
-- Una identidad compartida sólo puede editarse si el usuario administra todos sus edificios vinculados.
+- La consulta exige `propiedad.ver` y los cambios exigen `propiedad.gestionar` en el edificio correspondiente.
+- Una identidad compartida sólo puede editarse si el usuario tiene `propiedad.gestionar` en todos sus edificios vinculados.
 
 Reglas de residentes y ocupación:
 
@@ -251,6 +301,7 @@ Reglas de negocio:
 - Registrar un pago emite un único recibo en la misma transacción. Su número es global `REC-AAAA-NNNNNN` y el consecutivo se reinicia únicamente al cambiar de año.
 - El recibo guarda snapshots del pago y de su aplicación inicial; una aplicación posterior de saldo a favor no lo altera. Anular el pago anula el recibo con usuario, fecha y motivo, sin eliminar registros.
 - Las evidencias son PDF, JPG o PNG de hasta 10 MB, se almacenan en el disco privado no servible `evidence`, validan estructura y SHA-256, sólo se aceptan para pagos registrados y se descargan tras validar acceso al edificio.
+- Listados financieros requieren `finanzas.ver`; crear conceptos, cargos, pagos o evidencias y anular documentos usa el permiso específico de cada operación.
 
 Rutas principales:
 
@@ -289,7 +340,7 @@ El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crea
 
 | Contexto | Estado | Decisión pendiente |
 |---|---|---|
-| Auth | Reutilizable | Añadir roles, permisos y políticas |
+| Auth | Reutilizable | Mantener autenticación y catálogo global de usuarios |
 | Cliente | Web y API heredadas activas | Retirar después de inventariar consumidores; no se usa para Propiedad |
 | Categoria | API activa | Retirar o adaptar cuando se defina el catálogo real |
 | Producto | API activa | Retirar o adaptar cuando se definan servicios y conceptos |

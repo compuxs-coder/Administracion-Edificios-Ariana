@@ -98,7 +98,7 @@ class WebAuthController extends Controller
             // Regenerar sesión
             $request->session()->regenerate();
 
-            return redirect()->route('dashboard')
+            return redirect()->intended(route('dashboard'))
                 ->with('success', '¡Registro exitoso! Bienvenido.');
 
         } catch (Exception $e) {

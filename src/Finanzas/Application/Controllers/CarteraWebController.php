@@ -11,6 +11,8 @@ use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Models\PisoEloquentModel;
 use Src\Edificio\Infrastructure\Models\TorreEloquentModel;
+use Src\Edificio\Application\Services\AccesoEdificioService;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Application\Actions\GetEstadoCuentaAction;
 use Src\Finanzas\Application\Actions\GetPagoOptionsAction;
 use Src\Finanzas\Application\Actions\PaginateCarteraAction;
@@ -18,11 +20,19 @@ use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
 
 final class CarteraWebController extends Controller
 {
-    public function __construct(private readonly PaginateCarteraAction $paginate, private readonly GetEstadoCuentaAction $statement, private readonly GetPagoOptionsAction $options) {}
+    public function __construct(
+        private readonly PaginateCarteraAction $paginate,
+        private readonly GetEstadoCuentaAction $statement,
+        private readonly GetPagoOptionsAction $options,
+        private readonly AccesoEdificioService $access,
+    ) {}
 
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', EdificioEloquentModel::class);
+        abort_unless($this->access->allowsAny(
+            (string) $request->user()->getAuthIdentifier(),
+            PermisoEdificio::FINANZAS_VER,
+        ), 403);
         $filters = $request->validate([
             'edificio_id' => ['nullable', 'uuid'], 'departamento_id' => ['nullable', 'uuid'], 'piso_id' => ['nullable', 'uuid'], 'torre_id' => ['nullable', 'uuid'], 'propietario_id' => ['nullable', 'uuid'],
             'buscar' => ['nullable', 'string', 'max:100'], 'estado_departamento' => ['nullable', 'in:activo,inactivo'], 'situacion' => ['nullable', 'in:con_deuda,con_favor,vencidos'], 'estado' => ['nullable', 'in:al_dia,moroso,saldo_a_favor'],
@@ -47,7 +57,7 @@ final class CarteraWebController extends Controller
 
     public function show(Request $request, EdificioEloquentModel $edificio, DepartamentoEloquentModel $departamento): Response
     {
-        Gate::authorize('view', $edificio);
+        Gate::authorize('access', [$edificio, PermisoEdificio::FINANZAS_VER]);
         $filters = $request->validate(['fecha_desde' => ['nullable', 'date_format:Y-m-d'], 'fecha_hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:fecha_desde']]);
 
         return Inertia::render('Cartera/show', ['estadoCuenta' => $this->statement->execute((string) $request->user()->getAuthIdentifier(), $edificio->id, $departamento->id, $filters)]);

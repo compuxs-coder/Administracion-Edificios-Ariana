@@ -8,6 +8,8 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Contracts\OcupacionRepositoryInterface;
@@ -20,6 +22,8 @@ use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
 
 final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function getForDepartamento(string $userId, string $edificioId, string $departamentoId): array
     {
         $this->authorizedEdificio($userId, $edificioId);
@@ -62,7 +66,9 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
 
             $residente = ResidenteEloquentModel::query()
                 ->where('estado', EstadoResidente::ACTIVO->value)
-                ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+                ->whereHas('edificios', fn (Builder $query) => $query->whereKey(
+                    $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR),
+                ))
                 ->with('tercero')
                 ->lockForUpdate()
                 ->find($data['residente_id']);
@@ -153,7 +159,10 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
         bool $active = false,
     ): EdificioEloquentModel {
         $query = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+            ->whereKey($this->access->buildingIds(
+                $userId,
+                $lock ? PermisoEdificio::PROPIEDAD_GESTIONAR : PermisoEdificio::PROPIEDAD_VER,
+            ));
         if ($active) {
             $query->where('estado', 'activo');
         }
@@ -210,7 +219,9 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
     {
         return ResidenteEloquentModel::query()
             ->where('estado', EstadoResidente::ACTIVO->value)
-            ->whereHas('edificios.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereHas('edificios', fn (Builder $query) => $query->whereKey(
+                $this->access->buildingIds($userId, PermisoEdificio::PROPIEDAD_GESTIONAR),
+            ))
             ->with('tercero')
             ->orderBy('created_at')
             ->get()

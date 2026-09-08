@@ -16,7 +16,7 @@ interface DepartamentoRepositoryInterface
     public function findForEdificio(string $edificioId, string $departamentoId): ?array;
 
     /** @return array<string, mixed> */
-    public function formOptionsForUser(string $userId): array;
+    public function formOptionsForUser(string $userId, bool $forManagement): array;
 
     /**
      * @param array<string, mixed> $data

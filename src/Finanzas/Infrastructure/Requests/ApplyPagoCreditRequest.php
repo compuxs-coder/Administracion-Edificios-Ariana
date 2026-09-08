@@ -3,6 +3,7 @@
 namespace Src\Finanzas\Infrastructure\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 
 final class ApplyPagoCreditRequest extends FormRequest
@@ -12,7 +13,7 @@ final class ApplyPagoCreditRequest extends FormRequest
         $edificio = $this->route('edificio');
 
         return $edificio instanceof EdificioEloquentModel
-            && ($this->user()?->can('update', $edificio) ?? false);
+            && ($this->user()?->can('access', [$edificio, PermisoEdificio::PAGOS_APLICAR_SALDO]) ?? false);
     }
 
     /** @return array<string, mixed> */

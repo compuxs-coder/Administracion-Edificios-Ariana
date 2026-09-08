@@ -9,9 +9,9 @@ final readonly class GetPropietarioOptionsAction
     public function __construct(private PropietarioRepositoryInterface $repository) {}
 
     /** @return list<array<string, mixed>> */
-    public function buildings(string $userId): array
+    public function buildings(string $userId, bool $forManagement = false): array
     {
-        return $this->repository->buildingOptionsForUser($userId);
+        return $this->repository->buildingOptionsForUser($userId, $forManagement);
     }
 
     /** @return list<array<string, mixed>> */

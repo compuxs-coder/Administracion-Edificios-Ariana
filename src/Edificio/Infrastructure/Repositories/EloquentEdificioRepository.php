@@ -6,8 +6,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Contracts\EdificioRepositoryInterface;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
 use Src\Edificio\Domain\Entities\Edificio;
 use Src\Edificio\Domain\Enums\EstadoEdificio;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Mappers\EdificioMapper;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Models\TorreEloquentModel;
@@ -16,6 +18,8 @@ use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 
 final class EloquentEdificioRepository implements EdificioRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function paginateAssignedTo(
         string $userId,
         ?string $search,
@@ -23,7 +27,7 @@ final class EloquentEdificioRepository implements EdificioRepositoryInterface
         int $perPage,
     ): array {
         $paginator = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds($userId, PermisoEdificio::EDIFICIO_VER))
             ->when($search !== null && $search !== '', static function (Builder $query) use ($search): void {
                 $term = '%'.mb_strtolower($search).'%';
 
@@ -64,6 +68,7 @@ final class EloquentEdificioRepository implements EdificioRepositoryInterface
                 EdificioMapper::toPersistence($edificio),
             );
             $model->usuarios()->attach($userId);
+            $this->access->assignAdministrator($model->id, $userId);
             TorreEloquentModel::query()->forceCreate([
                 'edificio_id' => $model->id,
                 'codigo' => 'PRINCIPAL',

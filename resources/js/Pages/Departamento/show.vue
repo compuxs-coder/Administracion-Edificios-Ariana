@@ -10,12 +10,16 @@ import type {
   TipoOcupacion,
   TitularidadDepartamento
 } from '../../types'
+import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
 
 const props = defineProps<{
   departamento: Departamento
   propiedad: DepartamentoPropiedad
   ocupacion: DepartamentoOcupacion
 }>()
+const { can } = useBuildingPermissions()
+const canManageStructure = computed(() => can('estructura.gestionar', props.departamento.edificioId))
+const canManageProperty = computed(() => can('propiedad.gestionar', props.departamento.edificioId))
 const localDate = (date: Date) => [
   date.getFullYear(),
   String(date.getMonth() + 1).padStart(2, '0'),
@@ -234,7 +238,7 @@ const finalizeResident = () => {
       <UDashboardNavbar :title="`${departamento.codigo} · ${departamento.nombre}`">
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
-          <UButton color="neutral" icon="i-lucide-pencil" label="Editar unidad" variant="outline" :ui="{ label: 'hidden sm:inline' }" @click="router.visit(route('departamentos.edit', [departamento.edificioId, departamento.id]))" />
+          <UButton v-if="canManageStructure" color="neutral" icon="i-lucide-pencil" label="Editar unidad" variant="outline" :ui="{ label: 'hidden sm:inline' }" @click="router.visit(route('departamentos.edit', [departamento.edificioId, departamento.id]))" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -255,7 +259,7 @@ const finalizeResident = () => {
           <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div><p class="font-medium text-highlighted">Propietarios</p><p class="mt-1 text-xs text-muted">Participación activa: {{ Number(propiedad.participacionActual).toFixed(6) }}%</p></div>
-              <div class="flex flex-wrap gap-2">
+              <div v-if="canManageProperty" class="flex flex-wrap gap-2">
                 <UButton color="neutral" icon="i-lucide-arrow-right-left" label="Transferir" variant="outline" :disabled="!propiedad.actuales.length || departamento.estado === 'inactivo' || transferMin > today" @click="openTransfer" />
                 <UButton icon="i-lucide-user-plus" label="Asignar propietario" :disabled="remaining <= 0 || departamento.estado === 'inactivo'" @click="openAssign" />
               </div>
@@ -277,7 +281,7 @@ const finalizeResident = () => {
                   <td class="px-3 py-3 font-mono text-highlighted">{{ Number(item.porcentaje).toFixed(6) }}%</td>
                   <td class="px-3 py-3 text-muted">{{ formatDate(item.fechaInicio) }}<span v-if="item.fechaFin"> – {{ formatDate(item.fechaFin) }}</span></td>
                   <td class="px-3 py-3"><UBadge :color="item.estado === 'activa' ? 'success' : 'neutral'" :label="item.estado === 'activa' ? 'Activa' : 'Finalizada'" variant="subtle" /></td>
-                  <td class="px-3 py-3"><div class="flex justify-end"><UButton v-if="item.estado === 'activa'" color="error" icon="i-lucide-circle-stop" label="Finalizar" variant="ghost" :disabled="dayAfter(item.fechaInicio) > today" @click="openFinalize(item)" /></div></td>
+                  <td class="px-3 py-3"><div class="flex justify-end"><UButton v-if="canManageProperty && item.estado === 'activa'" color="error" icon="i-lucide-circle-stop" label="Finalizar" variant="ghost" :disabled="dayAfter(item.fechaInicio) > today" @click="openFinalize(item)" /></div></td>
                 </tr>
                 <tr v-if="!(section === 'actuales' ? propiedad.actuales : propiedad.historial).length"><td colspan="6" class="px-3 py-10 text-center text-muted">No hay titularidades en esta sección.</td></tr>
               </tbody>
@@ -289,7 +293,7 @@ const finalizeResident = () => {
           <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div><p class="font-medium text-highlighted">Residentes</p><p class="mt-1 text-xs text-muted">Ocupantes actuales e historial de la unidad.</p></div>
-              <UButton icon="i-lucide-user-plus" label="Asignar residente" :disabled="departamento.estado === 'inactivo' || !ocupacion.opciones.length" @click="openResidentAssign" />
+              <UButton v-if="canManageProperty" icon="i-lucide-user-plus" label="Asignar residente" :disabled="departamento.estado === 'inactivo' || !ocupacion.opciones.length" @click="openResidentAssign" />
             </div>
           </template>
 
@@ -308,7 +312,7 @@ const finalizeResident = () => {
                   <td class="px-3 py-3"><p class="text-highlighted">{{ occupancyTypeLabels[item.tipoOcupacion] }}</p><p v-if="item.observaciones" class="mt-1 max-w-xs truncate text-xs text-muted" :title="item.observaciones">{{ item.observaciones }}</p></td>
                   <td class="px-3 py-3 text-muted">{{ formatDate(item.fechaInicio) }}<span v-if="item.fechaFin"> – {{ formatDate(item.fechaFin) }}</span></td>
                   <td class="px-3 py-3"><UBadge :color="item.estado === 'activa' ? 'success' : 'neutral'" :label="item.estado === 'activa' ? 'Activa' : 'Finalizada'" variant="subtle" /></td>
-                  <td class="px-3 py-3"><div class="flex justify-end"><UButton v-if="item.estado === 'activa'" color="error" icon="i-lucide-circle-stop" label="Finalizar" variant="ghost" :disabled="dayAfter(item.fechaInicio) > today" @click="openResidentFinalize(item)" /></div></td>
+                  <td class="px-3 py-3"><div class="flex justify-end"><UButton v-if="canManageProperty && item.estado === 'activa'" color="error" icon="i-lucide-circle-stop" label="Finalizar" variant="ghost" :disabled="dayAfter(item.fechaInicio) > today" @click="openResidentFinalize(item)" /></div></td>
                 </tr>
                 <tr v-if="!(occupancySection === 'actuales' ? ocupacion.actuales : ocupacion.historial).length"><td colspan="6" class="px-3 py-10 text-center text-muted">No hay ocupaciones en esta sección.</td></tr>
               </tbody>

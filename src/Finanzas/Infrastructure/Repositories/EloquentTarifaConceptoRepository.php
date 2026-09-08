@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Finanzas\Domain\Contracts\TarifaConceptoRepositoryInterface;
@@ -23,6 +25,8 @@ use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 
 final class EloquentTarifaConceptoRepository implements TarifaConceptoRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function create(string $userId, string $edificioId, string $conceptoId, array $data): void
     {
         DB::transaction(function () use ($userId, $edificioId, $conceptoId, $data): void {
@@ -61,7 +65,7 @@ final class EloquentTarifaConceptoRepository implements TarifaConceptoRepository
     private function authorizedEdificio(string $userId, string $edificioId, bool $lock): EdificioEloquentModel
     {
         $query = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+            ->whereKey($this->access->buildingIds($userId, PermisoEdificio::CONCEPTOS_GESTIONAR));
 
         if ($lock) {
             $query->lockForUpdate();

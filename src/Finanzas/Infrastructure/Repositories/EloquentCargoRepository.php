@@ -9,6 +9,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Enums\EstadoEstructura;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Finanzas\Domain\Contracts\CargoRepositoryInterface;
@@ -28,10 +30,12 @@ use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 
 final class EloquentCargoRepository implements CargoRepositoryInterface
 {
+    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+
     public function list(string $userId, array $filters): array
     {
         $query = CargoEloquentModel::query()
-            ->whereHas('departamento.edificio.usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::FINANZAS_VER))
             ->with(['departamento', 'concepto', 'tarifa', 'lote'])
             ->orderByDesc('periodo')
             ->orderBy('departamento_id');
@@ -57,7 +61,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
 
     public function get(string $userId, string $edificioId, string $cargoId): array
     {
-        $this->authorizedEdificio($userId, $edificioId);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::FINANZAS_VER);
         $cargo = CargoEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->with(['departamento', 'concepto', 'tarifa', 'lote', 'aplicacionesPago.pago'])
@@ -78,7 +82,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         $periodoDate = $this->period($periodo);
 
         return DB::transaction(function () use ($userId, $edificioId, $periodoDate, $conceptoId): array {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CARGOS_GENERAR, true);
             $preview = $this->buildPreview($userId, $edificioId, $periodoDate, $conceptoId, true);
             $lote = new LoteGeneracionCargoEloquentModel();
             $lote->edificio_id = $edificioId;
@@ -156,7 +160,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
     public function createManual(string $userId, string $edificioId, array $data): array
     {
         return DB::transaction(function () use ($userId, $edificioId, $data): array {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CARGOS_CREAR, true);
             $departamento = DepartamentoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->where('estado', EstadoEstructura::ACTIVO->value)
@@ -211,7 +215,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
     public function cancel(string $userId, string $edificioId, string $cargoId, string $motivo): void
     {
         DB::transaction(function () use ($userId, $edificioId, $cargoId, $motivo): void {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CARGOS_ANULAR, true);
             $cargo = CargoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->lockForUpdate()
@@ -251,10 +255,10 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         })->all();
     }
 
-    public function options(string $userId): array
+    public function options(string $userId, PermisoEdificio $permission = PermisoEdificio::FINANZAS_VER): array
     {
         $edificios = EdificioEloquentModel::query()
-            ->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId))
+            ->whereKey($this->access->buildingIds($userId, $permission))
             ->orderBy('nombre')
             ->get(['id', 'nombre']);
         $ids = $edificios->pluck('id')->all();
@@ -289,7 +293,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
     /** @return array<string, mixed> */
     private function buildPreview(?string $userId, string $edificioId, CarbonImmutable $periodo, ?string $conceptoId, bool $lock = false): array
     {
-        $this->authorizedEdificio($userId, $edificioId, $lock);
+        $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CARGOS_GENERAR, $lock);
         $concepts = ConceptoCobroEloquentModel::query()
             ->where('edificio_id', $edificioId)
             ->where('estado', EstadoConceptoCobro::ACTIVO->value)
@@ -376,11 +380,16 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         ];
     }
 
-    private function authorizedEdificio(?string $userId, string $edificioId, bool $lock = false): EdificioEloquentModel
+    private function authorizedEdificio(
+        ?string $userId,
+        string $edificioId,
+        PermisoEdificio $permission,
+        bool $lock = false,
+    ): EdificioEloquentModel
     {
         $query = EdificioEloquentModel::query();
         if ($userId !== null) {
-            $query->whereHas('usuarios', static fn (Builder $query) => $query->whereKey($userId));
+            $query->whereKey($this->access->buildingIds($userId, $permission));
         } else {
             $query->where('estado', EstadoEstructura::ACTIVO->value);
         }
