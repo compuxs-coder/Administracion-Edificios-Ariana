@@ -11,7 +11,17 @@ const cancelOpen = ref(false)
 const motivo = ref('')
 const loading = ref(false)
 const error = ref('')
-const snapshot = computed(() => (props.cargo.snapshot ?? {}) as { concepto?: { formaCalculo?: string }, tipoCalculo?: string })
+const snapshot = computed(() => (props.cargo.snapshot ?? {}) as {
+  concepto?: { formaCalculo?: string }
+  tipoCalculo?: string
+  tarifa?: { porcentaje?: string | null }
+  calculo?: {
+    base?: string | null
+    baseCalculo?: string
+    fechaCorte?: string
+    lectura?: { id: string, fechaLectura: string, lecturaAnterior: string, lecturaActual: string, consumo: string, unidad: string }
+  }
+})
 const cancel = () => router.patch(route('cargos.cancel', [props.cargo.edificioId, props.cargo.id]), { motivo: motivo.value }, {
   preserveScroll: true,
   onStart: () => { loading.value = true },
@@ -40,6 +50,20 @@ const cancel = () => router.patch(route('cargos.cancel', [props.cargo.edificioId
             <div><dt class="text-xs uppercase text-muted">Emisión</dt><dd class="mt-1">{{ cargo.fechaEmision }}</dd></div>
             <div><dt class="text-xs uppercase text-muted">Vencimiento</dt><dd class="mt-1">{{ cargo.fechaVencimiento }}</dd></div>
             <div><dt class="text-xs uppercase text-muted">Lote</dt><dd class="mt-1 font-mono text-sm">{{ cargo.loteId || 'Manual' }}</dd></div>
+          </dl>
+        </UCard>
+        <UCard v-if="snapshot.calculo?.lectura || snapshot.calculo?.baseCalculo">
+          <template #header><p class="font-semibold text-highlighted">Cálculo variable</p></template>
+          <dl v-if="snapshot.calculo.lectura" class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt class="text-xs uppercase text-muted">Fecha de lectura</dt><dd class="mt-1">{{ snapshot.calculo.lectura.fechaLectura }}</dd></div>
+            <div><dt class="text-xs uppercase text-muted">Lectura anterior</dt><dd class="mt-1 font-mono">{{ snapshot.calculo.lectura.lecturaAnterior }}</dd></div>
+            <div><dt class="text-xs uppercase text-muted">Lectura actual</dt><dd class="mt-1 font-mono">{{ snapshot.calculo.lectura.lecturaActual }}</dd></div>
+            <div><dt class="text-xs uppercase text-muted">Consumo facturado</dt><dd class="mt-1 font-mono font-semibold">{{ snapshot.calculo.lectura.consumo }} {{ snapshot.calculo.lectura.unidad }}</dd></div>
+          </dl>
+          <dl v-else class="grid gap-5 sm:grid-cols-3">
+            <div><dt class="text-xs uppercase text-muted">Base</dt><dd class="mt-1 font-mono">${{ snapshot.calculo?.base }}</dd></div>
+            <div><dt class="text-xs uppercase text-muted">Tipo de base</dt><dd class="mt-1">{{ snapshot.calculo?.baseCalculo }}</dd></div>
+            <div><dt class="text-xs uppercase text-muted">Porcentaje y corte</dt><dd class="mt-1 font-mono">{{ snapshot.tarifa?.porcentaje }}% · {{ snapshot.calculo?.fechaCorte }}</dd></div>
           </dl>
         </UCard>
         <UCard v-if="cargo.aplicacionesPago && cargo.aplicacionesPago.length">

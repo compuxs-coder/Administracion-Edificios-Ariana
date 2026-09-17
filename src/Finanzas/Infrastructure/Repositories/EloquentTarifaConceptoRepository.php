@@ -21,6 +21,7 @@ use Src\Finanzas\Domain\Enums\FormaCalculoCobro;
 use Src\Finanzas\Domain\Enums\PeriodicidadCobro;
 use Src\Finanzas\Domain\Enums\TipoConceptoCobro;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
+use Src\Finanzas\Infrastructure\Models\LecturaConsumoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 
 final class EloquentTarifaConceptoRepository implements TarifaConceptoRepositoryInterface
@@ -111,6 +112,13 @@ final class EloquentTarifaConceptoRepository implements TarifaConceptoRepository
             $errors['monto_total'] = 'Monto total y número de cuotas deben registrarse juntos.';
             $errors['numero_cuotas'] = 'Monto total y número de cuotas deben registrarse juntos.';
         }
+        if ($montoTotal !== null && ! in_array($concepto->forma_calculo, [
+            FormaCalculoCobro::VALOR_FIJO,
+            FormaCalculoCobro::POR_ALICUOTA,
+        ], true)) {
+            $errors['monto_total'] = 'Las cuotas extraordinarias requieren valor fijo o cálculo por alícuota.';
+            $errors['numero_cuotas'] = 'Las cuotas extraordinarias requieren valor fijo o cálculo por alícuota.';
+        }
         if ($numeroCuotas !== null && $numeroCuotas > 1 && in_array($concepto->periodicidad, [PeriodicidadCobro::UNICO, PeriodicidadCobro::MANUAL], true)) {
             $errors['numero_cuotas'] = 'Una tarifa con varias cuotas requiere una periodicidad automática recurrente.';
         }
@@ -124,14 +132,21 @@ final class EloquentTarifaConceptoRepository implements TarifaConceptoRepository
         if ($concepto->forma_calculo === FormaCalculoCobro::PORCENTAJE && $porcentaje === null) {
             $errors['porcentaje'] = 'Esta forma de cálculo requiere un porcentaje.';
         }
-        if ($concepto->tipo === TipoConceptoCobro::CONSUMO && $unidad === null) {
-            $errors['unidad'] = 'Los conceptos de consumo requieren una unidad.';
+        if ($concepto->forma_calculo === FormaCalculoCobro::POR_CONSUMO && $unidad === null) {
+            $errors['unidad'] = 'El cálculo por consumo requiere una unidad.';
         }
-        if ($concepto->tipo === TipoConceptoCobro::INTERES && $baseCalculo === null) {
-            $errors['base_calculo'] = 'Los intereses requieren una base de cálculo.';
+        if ($concepto->forma_calculo === FormaCalculoCobro::PORCENTAJE && $baseCalculo === null) {
+            $errors['base_calculo'] = 'El cálculo porcentual requiere una base de cálculo.';
         }
         if ($baseCalculo !== null && BaseCalculoInteres::tryFrom($baseCalculo) === null) {
             $errors['base_calculo'] = 'La base de cálculo no es válida.';
+        }
+        $unidadHistorica = LecturaConsumoEloquentModel::query()
+            ->where('edificio_id', $concepto->edificio_id)
+            ->where('concepto_cobro_id', $concepto->id)
+            ->value('unidad');
+        if ($unidadHistorica !== null && $unidad !== $unidadHistorica) {
+            $errors['unidad'] = 'La unidad no puede cambiar después de registrar lecturas.';
         }
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
@@ -147,10 +162,10 @@ final class EloquentTarifaConceptoRepository implements TarifaConceptoRepository
         ], true)) {
             $valor = null;
         }
-        if ($concepto->tipo !== TipoConceptoCobro::CONSUMO) {
+        if ($concepto->forma_calculo !== FormaCalculoCobro::POR_CONSUMO) {
             $unidad = null;
         }
-        if ($concepto->tipo !== TipoConceptoCobro::INTERES) {
+        if ($concepto->forma_calculo !== FormaCalculoCobro::PORCENTAJE) {
             $baseCalculo = null;
         }
         if ($concepto->tipo !== TipoConceptoCobro::EXTRAORDINARIO) {

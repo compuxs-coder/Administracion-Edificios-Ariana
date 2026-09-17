@@ -15,6 +15,7 @@ enum PermisoEdificio: string
     case PROPIEDAD_GESTIONAR = 'propiedad.gestionar';
     case FINANZAS_VER = 'finanzas.ver';
     case CONCEPTOS_GESTIONAR = 'conceptos.gestionar';
+    case LECTURAS_REGISTRAR = 'lecturas.registrar';
     case CARGOS_GENERAR = 'cargos.generar';
     case CARGOS_CREAR = 'cargos.crear';
     case CARGOS_ANULAR = 'cargos.anular';

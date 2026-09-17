@@ -15,6 +15,7 @@ use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Finanzas\Domain\Contracts\ConceptoCobroRepositoryInterface;
 use Src\Finanzas\Domain\Enums\EstadoConceptoCobro;
 use Src\Finanzas\Domain\Enums\EstadoTarifa;
+use Src\Finanzas\Infrastructure\Models\CargoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
 use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 
@@ -207,6 +208,19 @@ final class EloquentConceptoCobroRepository implements ConceptoCobroRepositoryIn
             ->first() !== null;
         if ($hasTarifas) {
             throw ValidationException::withMessages($changed);
+        }
+
+        $cargoSensitiveChanges = array_intersect_key($changed, array_flip(['tipo', 'forma_calculo']));
+        if ($cargoSensitiveChanges !== [] && CargoEloquentModel::query()
+            ->where('edificio_id', $concepto->edificio_id)
+            ->where('concepto_cobro_id', $concepto->id)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->first() !== null) {
+            throw ValidationException::withMessages(array_map(
+                static fn (): string => 'No se puede cambiar esta configuración después de registrar cargos.',
+                $cargoSensitiveChanges,
+            ));
         }
     }
 

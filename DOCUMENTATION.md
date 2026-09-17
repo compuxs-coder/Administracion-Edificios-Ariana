@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica y finanzas con cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica y finanzas con lecturas, consumos, cálculos porcentuales, cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -56,7 +56,7 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 19 permisos y administración de miembros |
+| `administrador` | Los 20 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes y evidencias |
 | `consulta` | Lectura de edificio, estructura, propiedad, finanzas y comprobantes |
@@ -68,7 +68,7 @@ edificio.ver                    edificio.editar                 edificio.cambiar
 miembros.ver                    miembros.gestionar
 estructura.ver                  estructura.gestionar
 propiedad.ver                   propiedad.gestionar
-finanzas.ver                    conceptos.gestionar
+finanzas.ver                    conceptos.gestionar              lecturas.registrar
 cargos.generar                  cargos.crear                     cargos.anular
 pagos.registrar                 pagos.aplicar_saldo              pagos.anular
 comprobantes.ver                evidencias.gestionar
@@ -114,7 +114,7 @@ Durante la transición:
 - Torres, pisos, departamentos, parqueaderos, bodegas y sus historiales de asignación residen en `administracion_edificios`.
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
 - Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
-- Conceptos de cobro, tarifas y sus alcances por departamento residen en `administracion_edificios`.
+- Conceptos de cobro, tarifas, lecturas de consumo, cargos y sus alcances por departamento residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -261,7 +261,8 @@ Tablas:
 - `conceptos_cobro`: código único por edificio, nombre, tipo, periodicidad, forma de cálculo y estado.
 - `tarifas_concepto`: valores `numeric(14,4)`, porcentajes `numeric(9,6)`, configuración de consumo/interés/cuotas extraordinarias y vigencia.
 - `tarifa_departamentos`: alcance histórico de tarifas aplicables a departamentos específicos.
-- `cargos`: obligación concreta, período mensual, fechas, valor original, saldo, estado, origen y snapshot de cálculo.
+- `lecturas_consumo`: historial acumulativo e inmutable por edificio, departamento, concepto y período.
+- `cargos`: obligación concreta, período mensual, fechas, valor original, saldo, estado, origen, referencia opcional a lectura y snapshot de cálculo.
 - `lotes_generacion_cargos`: auditoría de generación masiva, contadores, total y advertencias.
 - `pagos`: valor recibido, número legible, forma de pago, referencia, usuario, estado y snapshot de titulares.
 - `aplicaciones_pago`: aplicación inmutable de un pago a uno o varios cargos.
@@ -281,9 +282,15 @@ Reglas de negocio:
 - PostgreSQL bloquea tarifas solapadas, elimina la edición de una tarifa finalizada, evita el borrado de su historial y protege su alcance por departamento.
 - Tipo, periodicidad y forma de cálculo no se modifican cuando el concepto ya tiene tarifas.
 - El alcance soporta todo el edificio o departamentos específicos. FKs compuestas y revalidación transaccional rechazan departamentos de otro edificio.
-- Los conceptos de consumo requieren unidad y precio por unidad. Los intereses requieren porcentaje y base de cálculo. Las tarifas extraordinarias pueden registrar monto total y número de cuotas.
+- Los conceptos de consumo requieren unidad y precio por unidad. Toda forma porcentual requiere porcentaje y base de cálculo. Las tarifas extraordinarias de valor fijo o por cálculo por alícuota pueden registrar monto total y número de cuotas.
+- Tipo y forma de cálculo quedan inmutables al existir cargos para que las bases históricas no dependan de una clasificación posterior del concepto.
+- La primera lectura de una secuencia recibe la línea base. Las siguientes toman como anterior la lectura actual más reciente y exigen un período posterior, aunque se permiten períodos intermedios sin registro.
+- El backend calcula `consumo = lectura_actual - lectura_anterior`; rechaza regresiones, duplicados, fechas fuera del período y asociaciones entre edificios.
+- Las lecturas son append-only. PostgreSQL y SQLite impiden actualizarlas o eliminarlas, y una FK compuesta conserva la lectura que sustenta cada cargo.
 - Los cargos automáticos son únicos por edificio, departamento, concepto y período; reintentos registran omitidos en un lote y no duplican deuda.
-- Valor fijo usa la tarifa; por alícuota usa la base de tarifa y `departamento.alicuota` con BCMath. Consumo sin lectura, porcentaje sin base, concepto manual y valor cero se omiten con advertencia.
+- Valor fijo usa la tarifa; por alícuota usa la base y `departamento.alicuota`; consumo multiplica la diferencia de lecturas por el precio unitario; porcentaje aplica la tarifa a una base financiera reconstruida. Todos usan BCMath.
+- Las bases porcentuales se calculan al inicio del período: `saldo_vencido`, `capital_vencido` sin intereses y `saldo_total`. Se descuentan las aplicaciones que ya existían al corte y cuyos pagos estaban vigentes en ese momento; los saldos a favor no se descuentan.
+- Consumo sin lectura emite `CONSUMO_NO_DISPONIBLE`; una tarifa porcentual incompleta emite `BASE_PORCENTAJE_NO_DISPONIBLE`; un resultado que excede `numeric(14,4)` emite `VALOR_FUERA_DE_RANGO`; concepto manual y valor cero también se omiten con advertencia.
 - Todo el edificio incluye sólo departamentos activos; el alcance específico respeta `tarifa_departamentos` y sus FKs compuestas.
 - El cargo pertenece al departamento. En copropiedad no divide deuda y conserva un snapshot de todos los titulares.
 - Edificio no tiene configuración de vencimiento: automático usa el último día del período y manual recibe fecha explícita.
@@ -301,7 +308,7 @@ Reglas de negocio:
 - Registrar un pago emite un único recibo en la misma transacción. Su número es global `REC-AAAA-NNNNNN` y el consecutivo se reinicia únicamente al cambiar de año.
 - El recibo guarda snapshots del pago y de su aplicación inicial; una aplicación posterior de saldo a favor no lo altera. Anular el pago anula el recibo con usuario, fecha y motivo, sin eliminar registros.
 - Las evidencias son PDF, JPG o PNG de hasta 10 MB, se almacenan en el disco privado no servible `evidence`, validan estructura y SHA-256, sólo se aceptan para pagos registrados y se descargan tras validar acceso al edificio.
-- Listados financieros requieren `finanzas.ver`; crear conceptos, cargos, pagos o evidencias y anular documentos usa el permiso específico de cada operación.
+- Listados financieros requieren `finanzas.ver`; registrar lecturas usa `lecturas.registrar`; crear conceptos, cargos, pagos o evidencias y anular documentos usa el permiso específico de cada operación.
 
 Rutas principales:
 
@@ -314,6 +321,9 @@ GET    /edificios/{edificio}/conceptos/{concepto}/edit
 PUT    /edificios/{edificio}/conceptos/{concepto}
 PATCH  /edificios/{edificio}/conceptos/{concepto}/estado
 POST   /edificios/{edificio}/conceptos/{concepto}/tarifas
+GET    /lecturas
+GET    /lecturas/create
+POST   /edificios/{edificio}/lecturas
 GET    /cargos
 GET    /cargos/generar
 POST   /edificios/{edificio}/cargos/generar

@@ -58,6 +58,10 @@ final class SaveConceptoCobroRequest extends FormRequest
                 && $this->input('forma_calculo') !== FormaCalculoCobro::POR_CONSUMO->value) {
                 $validator->errors()->add('forma_calculo', 'Los conceptos de consumo deben calcularse por consumo.');
             }
+            if ($this->input('forma_calculo') === FormaCalculoCobro::POR_CONSUMO->value
+                && $this->input('tipo') !== TipoConceptoCobro::CONSUMO->value) {
+                $validator->errors()->add('tipo', 'La forma por consumo requiere un concepto de tipo consumo.');
+            }
             if ($this->input('tipo') === TipoConceptoCobro::INTERES->value
                 && $this->input('forma_calculo') !== FormaCalculoCobro::PORCENTAJE->value) {
                 $validator->errors()->add('forma_calculo', 'Los intereses deben calcularse por porcentaje.');

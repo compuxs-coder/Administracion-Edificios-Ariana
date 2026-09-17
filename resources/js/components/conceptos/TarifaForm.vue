@@ -18,9 +18,8 @@ const state = reactive<TarifaConceptoFormData>({
 })
 const needsValor = computed(() => ['valor_fijo', 'por_alicuota', 'por_consumo'].includes(props.formaCalculo))
 const needsPorcentaje = computed(() => props.formaCalculo === 'porcentaje')
-const isExtraordinario = computed(() => props.tipo === 'extraordinario')
-const isConsumo = computed(() => props.tipo === 'consumo')
-const isInteres = computed(() => props.tipo === 'interes')
+const supportsInstallments = computed(() => props.tipo === 'extraordinario' && ['valor_fijo', 'por_alicuota'].includes(props.formaCalculo))
+const isConsumo = computed(() => props.formaCalculo === 'por_consumo')
 const alcanceItems: Array<{ label: string, value: AlcanceTarifa }> = [
   { label: 'Todo el edificio', value: 'todo_el_edificio' },
   { label: 'Departamentos específicos', value: 'departamentos_especificos' }
@@ -41,9 +40,9 @@ const baseItems: Array<{ label: string, value: BaseCalculoInteres }> = [
       <UFormField v-if="needsValor" :label="isConsumo ? 'Precio por unidad' : formaCalculo === 'por_alicuota' ? 'Presupuesto base' : 'Valor'" name="valor" required :error="errors.valor"><UInput v-model="state.valor" class="w-full" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,4})?" placeholder="0.0000" required size="xl" /></UFormField>
       <UFormField v-if="needsPorcentaje" label="Porcentaje" name="porcentaje" required :error="errors.porcentaje"><UInput v-model="state.porcentaje" class="w-full" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,6})?" placeholder="0.000000" required size="xl" /></UFormField>
       <UFormField v-if="isConsumo" label="Unidad" name="unidad" required :error="errors.unidad"><UInput v-model="state.unidad" class="w-full" placeholder="m3, kWh, unidad" required size="xl" /></UFormField>
-      <UFormField v-if="isInteres" label="Base de cálculo" name="base_calculo" required :error="errors.baseCalculo"><USelect v-model="state.base_calculo" class="w-full" :items="baseItems" placeholder="Seleccione base" required size="xl" /></UFormField>
-      <UFormField v-if="isExtraordinario" label="Monto total" name="monto_total" hint="Opcional, junto a cuotas" :error="errors.montoTotal"><UInput v-model="state.monto_total" class="w-full" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,4})?" placeholder="0.0000" size="xl" /></UFormField>
-      <UFormField v-if="isExtraordinario" label="Número de cuotas" name="numero_cuotas" hint="Opcional, junto a monto total" :error="errors.numeroCuotas"><UInput v-model="state.numero_cuotas" class="w-full" type="number" min="1" step="1" size="xl" /></UFormField>
+      <UFormField v-if="needsPorcentaje" label="Base de cálculo" name="base_calculo" required :error="errors.baseCalculo"><USelect v-model="state.base_calculo" class="w-full" :items="baseItems" placeholder="Seleccione base" required size="xl" /></UFormField>
+      <UFormField v-if="supportsInstallments" label="Monto total" name="monto_total" hint="Opcional, junto a cuotas" :error="errors.montoTotal"><UInput v-model="state.monto_total" class="w-full" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,4})?" placeholder="0.0000" size="xl" /></UFormField>
+      <UFormField v-if="supportsInstallments" label="Número de cuotas" name="numero_cuotas" hint="Opcional, junto a monto total" :error="errors.numeroCuotas"><UInput v-model="state.numero_cuotas" class="w-full" type="number" min="1" step="1" size="xl" /></UFormField>
     </div>
 
     <section class="space-y-3 border-t border-default pt-5"><div><p class="text-sm font-semibold text-highlighted">Alcance</p><p class="mt-1 text-xs text-muted">La tarifa se versiona con su alcance. Torre y piso podrán añadirse como extensiones futuras sin alterar este historial.</p></div><UFormField label="Aplicar a" name="alcance" required :error="errors.alcance"><USelect v-model="state.alcance" class="w-full" :items="alcanceItems" required size="xl" /></UFormField><div v-if="state.alcance === 'departamentos_especificos'" class="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-default p-3"><UCheckbox v-for="departamento in departamentos" :key="departamento.id" v-model="state.departamentos" :value="departamento.id" :label="`${departamento.codigo} · ${departamento.nombre}`" /><p v-if="!departamentos.length" class="text-sm text-muted">No hay departamentos activos disponibles.</p></div></section>

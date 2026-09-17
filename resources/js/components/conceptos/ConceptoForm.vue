@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import type { ConceptoCobroFormData, FormaCalculoCobro, PeriodicidadCobro, TipoConceptoCobro } from '../../types'
 
 const props = withDefaults(defineProps<{
@@ -28,8 +28,9 @@ const emit = defineEmits<{
 const selectedBuilding = props.edificios.some(item => item.id === props.selectedEdificioId)
   ? props.selectedEdificioId ?? ''
   : ''
+const defaultBuilding = selectedBuilding || (props.edificios.length === 1 ? props.edificios[0]?.id ?? '' : '')
 const state = reactive<ConceptoCobroFormData>({
-  edificio_id: props.initial.edificio_id ?? selectedBuilding ?? (props.edificios.length === 1 ? props.edificios[0]?.id ?? '' : ''),
+  edificio_id: props.initial.edificio_id ?? defaultBuilding,
   codigo: props.initial.codigo ?? '',
   nombre: props.initial.nombre ?? '',
   descripcion: props.initial.descripcion ?? '',
@@ -55,17 +56,23 @@ const periodicidadItems: Array<{ label: string, value: PeriodicidadCobro }> = [
   { label: 'Único', value: 'unico' },
   { label: 'Manual', value: 'manual' }
 ]
-const calculoItems: Array<{ label: string, value: FormaCalculoCobro }> = [
+const allCalculoItems: Array<{ label: string, value: FormaCalculoCobro }> = [
   { label: 'Valor fijo', value: 'valor_fijo' },
   { label: 'Por alícuota', value: 'por_alicuota' },
   { label: 'Porcentaje', value: 'porcentaje' },
   { label: 'Por consumo', value: 'por_consumo' },
   { label: 'Manual', value: 'manual' }
 ]
+const calculoItems = computed(() => {
+  if (state.tipo === 'consumo') return allCalculoItems.filter(item => item.value === 'por_consumo')
+  if (state.tipo === 'interes') return allCalculoItems.filter(item => item.value === 'porcentaje')
+  return allCalculoItems.filter(item => item.value !== 'por_consumo')
+})
 
 watch(() => state.tipo, tipo => {
   if (tipo === 'consumo') state.forma_calculo = 'por_consumo'
-  if (tipo === 'interes') state.forma_calculo = 'porcentaje'
+  else if (tipo === 'interes') state.forma_calculo = 'porcentaje'
+  else if (state.forma_calculo === 'por_consumo') state.forma_calculo = 'valor_fijo'
 })
 </script>
 
@@ -89,7 +96,7 @@ watch(() => state.tipo, tipo => {
       <UFormField label="Descripción" name="descripcion" hint="Opcional" :error="errors.descripcion"><UTextarea v-model="state.descripcion" class="w-full" :rows="3" placeholder="Detalle administrativo del concepto" /></UFormField>
     </section>
 
-    <UAlert v-if="state.tipo === 'consumo'" color="info" description="La tarifa solicitará unidad y precio por unidad para preparar la futura lectura de consumos." icon="i-lucide-gauge" variant="subtle" />
+    <UAlert v-if="state.tipo === 'consumo'" color="info" description="La tarifa solicitará unidad y precio por unidad. Los consumos se obtienen de lecturas acumulativas registradas por período." icon="i-lucide-gauge" variant="subtle" />
     <UAlert v-if="state.tipo === 'interes'" color="info" description="La tarifa solicitará porcentaje y base de cálculo para preparar intereses por mora." icon="i-lucide-percent" variant="subtle" />
 
     <div class="flex flex-col-reverse justify-end gap-3 border-t border-default pt-5 sm:flex-row"><UButton color="neutral" label="Cancelar" type="button" variant="outline" :disabled="loading" @click="emit('cancel')" /><UButton icon="i-lucide-save" :label="submitLabel" type="submit" :loading="loading" :disabled="requireEdificio && !state.edificio_id" /></div>

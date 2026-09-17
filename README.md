@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 19 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 20 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -19,7 +19,8 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Identidad global compartida para propietarios y residentes, sin duplicar personas ni acoplarlas a autenticación.
 - Directorio de residentes y ocupación histórica por departamento con múltiples ocupantes, vigencias, snapshots e inmutabilidad.
 - Configuración financiera de conceptos de cobro, tarifas históricas, vigencias y alcance por edificio o departamento.
-- Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric`, porcentajes y cálculo por alícuota.
+- Tipos ordinarios, extraordinarios, consumo, multa e interés con montos `numeric` y cálculos por alícuota, consumo o porcentaje.
+- Lecturas acumulativas e inmutables por departamento, concepto y período, con continuidad histórica y consumo calculado en servidor.
 - Generación y previsualización de cargos por período, lotes auditables, idempotencia, snapshots y anulación sin eliminación física.
 - Registro de pagos con aplicación automática por antigüedad, pagos parciales, saldo a favor reutilizable, anulación trazable, recibos inmutables con consecutivo global anual y evidencias privadas PDF/JPG/PNG.
 - Cartera paginada y estados de cuenta reconstruibles con saldo vencido/no vencido, antigüedad, KPIs y movimientos financieros cronológicos.

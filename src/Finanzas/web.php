@@ -4,10 +4,14 @@ use Illuminate\Support\Facades\Route;
 use Src\Finanzas\Application\Controllers\CargoWebController;
 use Src\Finanzas\Application\Controllers\CarteraWebController;
 use Src\Finanzas\Application\Controllers\ConceptoCobroWebController;
+use Src\Finanzas\Application\Controllers\LecturaConsumoWebController;
 use Src\Finanzas\Application\Controllers\PagoWebController;
 use Src\Finanzas\Application\Controllers\ReciboPagoWebController;
 
 Route::middleware('auth')->group(function () {
+    Route::get('lecturas', [LecturaConsumoWebController::class, 'index'])->name('lecturas.index');
+    Route::get('lecturas/create', [LecturaConsumoWebController::class, 'create'])->name('lecturas.create');
+    Route::post('edificios/{edificio}/lecturas', [LecturaConsumoWebController::class, 'store'])->whereUuid('edificio')->name('lecturas.store');
     Route::get('cargos', [CargoWebController::class, 'index'])->name('cargos.index');
     Route::get('cargos/generar', [CargoWebController::class, 'generate'])->name('cargos.generate');
     Route::get('cargos/create', [CargoWebController::class, 'create'])->name('cargos.create');

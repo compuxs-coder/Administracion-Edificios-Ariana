@@ -56,6 +56,12 @@ final class CargoEloquentModel extends Model
         return $this->belongsTo(TarifaConceptoEloquentModel::class, 'tarifa_id');
     }
 
+    /** @return BelongsTo<LecturaConsumoEloquentModel, $this> */
+    public function lecturaConsumo(): BelongsTo
+    {
+        return $this->belongsTo(LecturaConsumoEloquentModel::class, 'lectura_consumo_id');
+    }
+
     /** @return BelongsTo<PropietarioEloquentModel, $this> */
     public function propietario(): BelongsTo
     {

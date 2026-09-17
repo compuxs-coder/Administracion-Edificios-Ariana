@@ -29,8 +29,8 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
-3. Los 19 permisos se agrupan en edificio, miembros, estructura, propiedad y finanzas. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, cargos, pagos, comprobantes y evidencias; `consulta` sólo dispone de lectura.
+3. Los 20 permisos se agrupan en edificio, miembros, estructura, propiedad y finanzas. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes y evidencias; `consulta` sólo dispone de lectura.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -116,22 +116,36 @@ Reglas implementadas:
 - Los importes usan `numeric(14,4)` y los porcentajes `numeric(9,6)`; no se usan `float` para persistir o transformar importes.
 - Las vigencias son intervalos semiabiertos `[fecha_inicio, fecha_fin)`. `programada`, `vigente` y `finalizada` se derivan de esas fechas y no se almacenan de forma redundante.
 - Registrar una tarifa nueva cierra transaccionalmente la única tarifa abierta anterior cuando corresponde; PostgreSQL bloquea solapamientos, edición histórica y eliminación directa.
-- Tipo, periodicidad y forma de cálculo no pueden cambiar después de registrar una tarifa; el alcance de una tarifa finalizada también es inmutable.
+- Tipo, periodicidad y forma de cálculo no pueden cambiar después de registrar una tarifa. Tipo y forma tampoco cambian después de registrar cargos; el alcance de una tarifa finalizada es inmutable.
 - El alcance soportado es `todo_el_edificio` o `departamentos_especificos`. Las FKs compuestas impiden seleccionar unidades de otro edificio.
 - La tabla de alcance es independiente de la tarifa, por lo que una extensión posterior puede añadir torre o piso sin reescribir tarifas históricas.
-- Consumo requiere forma `por_consumo` y unidad; interés requiere porcentaje y base de cálculo; las cuotas extraordinarias admiten monto total y número de cuotas.
+- Consumo requiere forma `por_consumo` y unidad; toda forma porcentual requiere porcentaje y base de cálculo; las cuotas extraordinarias de valor fijo o por alícuota admiten monto total y número de cuotas.
+
+## Finanzas: lecturas, consumos y porcentajes
+
+ETAPA 12 completa las formas variables dentro de `Finanzas`:
+
+- `lecturas_consumo` conserva una secuencia acumulativa por edificio, departamento y concepto. Sólo existe una lectura por período y no se admite edición ni eliminación.
+- La primera lectura recibe una línea base. Las siguientes deben usar como anterior la lectura actual más reciente y pertenecer a un período posterior; pueden existir períodos intermedios sin lectura.
+- Lectura anterior, lectura actual y unidad se validan en servidor. `consumo = lectura_actual - lectura_anterior` se calcula con BCMath y no puede ser negativo.
+- Una lectura sólo admite departamentos activos y conceptos activos de tipo consumo con forma `por_consumo`, tarifa vigente y alcance aplicable al departamento.
+- `lecturas.registrar` pertenece a `administrador` y `gestor_finanzas`; la consulta del historial reutiliza `finanzas.ver`.
+- Las FKs compuestas incluyen `edificio_id`, de modo que departamento, concepto, lectura y cargo no pueden cruzar edificios.
+- El cargo por consumo multiplica el consumo por el precio unitario vigente y conserva la referencia de la lectura y un snapshot de sus valores, unidad y tarifa.
+- Las bases porcentuales se reconstruyen al inicio del período con cargos vigentes en ese momento y aplicaciones de pagos creadas antes del corte. `saldo_vencido` incluye deuda vencida; `capital_vencido` excluye conceptos de interés; `saldo_total` incluye toda deuda emitida antes del corte. El saldo a favor no reduce estas bases.
+- El porcentaje se aplica con BCMath y se redondea a cuatro decimales. El cargo congela base, tipo de base, porcentaje y fecha de corte.
 
 ## Finanzas: cargos y lotes
 
-ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 aplica pagos sobre esos cargos y deriva cartera sin tablas editables de deuda.
+ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 12 completa los cálculos por consumo y porcentaje. ETAPA 7 aplica pagos sobre esos cargos y deriva cartera sin tablas editables de deuda.
 
 - `cargos` guarda una obligación concreta con saldo persistente, estados `pendiente`, `parcial`, `pagado` y `anulado`, y un snapshot de cálculo.
 - `lotes_generacion_cargos` audita cada ejecución, sus totales, omisiones y advertencias.
 - El período usa un `date` normalizado al primer día del mes y se presenta como `YYYY-MM`.
 - Edificio no dispone de fecha de corte o vencimiento. La generación automática emite el primer día del período y vence el último; el cargo manual permite override explícito.
 - Los cargos automáticos son idempotentes por edificio, departamento, concepto y período mediante transacción e índice parcial PostgreSQL.
-- Valor fijo y por alícuota se calculan con BCMath y `numeric`; porcentaje sin base legítima, consumo sin lectura y valor cero se omiten con advertencia.
-- El cargo pertenece al departamento. Guarda propietario sólo si existe un titular único y congela titulares, tarifa, alícuota y parámetros en metadata.
+- Valor fijo, por alícuota, por consumo y porcentual se calculan con BCMath y `numeric`; una lectura ausente, una configuración porcentual incompleta y un valor cero se omiten con advertencia.
+- El cargo pertenece al departamento. Guarda propietario sólo si existe un titular único y congela titulares, tarifa, alícuota, lectura, base porcentual y parámetros en metadata.
 - La anulación no elimina, exige motivo y sólo admite saldos íntegros pendientes.
 - `finanzas:generar-cargos --periodo=YYYY-MM [--edificio=UUID] [--concepto=UUID] [--dry-run]` se ejecuta diariamente a las 01:10 con `withoutOverlapping`.
 
@@ -165,7 +179,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 7 ap
 |---|---|
 | Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
 | Identidad y acceso | Usuarios, roles múltiples, permisos, invitaciones y auditoría por edificio implementados |
-| Cuentas por cobrar | Conceptos, tarifas, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
+| Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |

@@ -76,15 +76,22 @@ final class CreateTarifaConceptoRequest extends FormRequest
             if ($concepto->forma_calculo === FormaCalculoCobro::PORCENTAJE && $this->input('porcentaje') === null) {
                 $validator->errors()->add('porcentaje', 'Esta forma de cálculo requiere un porcentaje.');
             }
-            if ($concepto->tipo === TipoConceptoCobro::CONSUMO && $this->input('unidad') === null) {
-                $validator->errors()->add('unidad', 'Los conceptos de consumo requieren una unidad.');
+            if ($concepto->forma_calculo === FormaCalculoCobro::POR_CONSUMO && $this->input('unidad') === null) {
+                $validator->errors()->add('unidad', 'El cálculo por consumo requiere una unidad.');
             }
-            if ($concepto->tipo === TipoConceptoCobro::INTERES && $this->input('base_calculo') === null) {
-                $validator->errors()->add('base_calculo', 'Los intereses requieren una base de cálculo.');
+            if ($concepto->forma_calculo === FormaCalculoCobro::PORCENTAJE && $this->input('base_calculo') === null) {
+                $validator->errors()->add('base_calculo', 'El cálculo porcentual requiere una base de cálculo.');
             }
             if (($this->input('monto_total') === null) !== ($this->input('numero_cuotas') === null)) {
                 $validator->errors()->add('monto_total', 'Monto total y número de cuotas deben registrarse juntos.');
                 $validator->errors()->add('numero_cuotas', 'Monto total y número de cuotas deben registrarse juntos.');
+            }
+            if ($this->input('monto_total') !== null && ! in_array($concepto->forma_calculo, [
+                FormaCalculoCobro::VALOR_FIJO,
+                FormaCalculoCobro::POR_ALICUOTA,
+            ], true)) {
+                $validator->errors()->add('monto_total', 'Las cuotas extraordinarias requieren valor fijo o cálculo por alícuota.');
+                $validator->errors()->add('numero_cuotas', 'Las cuotas extraordinarias requieren valor fijo o cálculo por alícuota.');
             }
             if ((int) $this->input('numero_cuotas') > 1 && in_array($concepto->periodicidad, [PeriodicidadCobro::UNICO, PeriodicidadCobro::MANUAL], true)) {
                 $validator->errors()->add('numero_cuotas', 'Una tarifa con varias cuotas requiere una periodicidad automática recurrente.');

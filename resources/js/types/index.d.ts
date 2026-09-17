@@ -432,6 +432,7 @@ export interface Cargo {
   concepto: string | null
   codigoConcepto: string | null
   tarifaId: string | null
+  lecturaConsumoId: string | null
   periodo: string
   fechaEmision: string
   fechaVencimiento: string
@@ -446,6 +447,58 @@ export interface Cargo {
   motivoAnulacion: string | null
   snapshot: Record<string, unknown> | null
   aplicacionesPago?: Array<{ pagoId: string, numeroPago: string | null, fechaPago: string | null, valorAplicado: string, estadoPago: EstadoPago | undefined }> | null
+}
+
+export interface LecturaConsumo {
+  id: string
+  edificioId: string
+  edificio: string | null
+  departamentoId: string
+  departamento: string | null
+  conceptoId: string
+  concepto: string | null
+  codigoConcepto: string | null
+  periodo: string
+  fechaLectura: string
+  lecturaAnterior: string
+  lecturaActual: string
+  consumo: string
+  unidad: string
+  observacion: string | null
+  registradoPor: string | null
+  createdAt: string | null
+}
+
+export interface LecturaConsumoFormData {
+  edificio_id: string
+  departamento_id: string
+  concepto_cobro_id: string
+  periodo: string
+  fecha_lectura: string
+  lectura_anterior: string
+  lectura_actual: string
+  observacion: string
+}
+
+export interface LecturaConsumoOption {
+  id: string
+  edificioId: string
+  codigo: string
+  nombre: string
+}
+
+export interface UltimaLecturaConsumo {
+  edificioId: string
+  departamentoId: string
+  conceptoId: string
+  periodo: string
+  lecturaActual: string
+  unidad: string
+}
+
+export interface LecturasConsumoPaginadas {
+  data: LecturaConsumo[]
+  meta: PaginationMeta
 }
 
 export interface CargoOption {

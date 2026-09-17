@@ -13,6 +13,7 @@ use Src\Edificio\Application\Actions\CreateEdificioAction;
 use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Edificio\Infrastructure\Models\PisoEloquentModel;
+use Src\Finanzas\Infrastructure\Models\CargoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
 use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 use Tests\TestCase;
@@ -229,7 +230,7 @@ final class FinanzasWebTest extends TestCase
 
     public function test_concept_configuration_and_inactive_concepts_cannot_change_tariff_semantics(): void
     {
-        [$user, $edificio] = $this->buildingFixture();
+        [$user, $edificio, $departamentos] = $this->buildingFixture();
         $concepto = $this->createConcept($edificio, 'ALICUOTA');
         $this->actingAs($user)
             ->post(route('conceptos.tarifas.store', [$edificio, $concepto]), $this->rateData())
@@ -246,6 +247,42 @@ final class FinanzasWebTest extends TestCase
             'tipo' => 'ordinario',
             'forma_calculo' => 'por_alicuota',
         ]);
+
+        $conceptoConCargo = $this->createConcept($edificio, 'MULTA-MANUAL', [
+            'tipo' => 'multa',
+            'periodicidad' => 'manual',
+            'forma_calculo' => 'valor_fijo',
+        ]);
+        CargoEloquentModel::query()->forceCreate([
+            'edificio_id' => $edificio->id,
+            'departamento_id' => $departamentos[0]->id,
+            'concepto_cobro_id' => $conceptoConCargo->id,
+            'periodo' => '2026-08-01',
+            'fecha_emision' => '2026-08-01',
+            'fecha_vencimiento' => '2026-08-31',
+            'descripcion' => 'Multa manual',
+            'valor_original' => '20.0000',
+            'saldo' => '20.0000',
+            'estado' => 'pendiente',
+            'origen' => 'manual',
+        ]);
+        $this->actingAs($user)
+            ->put(route('conceptos.update', [$edificio, $conceptoConCargo]), $this->conceptData([
+                'codigo' => 'MULTA-MANUAL',
+                'nombre' => 'Multa manual',
+                'tipo' => 'ordinario',
+                'periodicidad' => 'manual',
+                'forma_calculo' => 'valor_fijo',
+            ]))
+            ->assertSessionHasErrors('tipo');
+        try {
+            DB::transaction(static fn () => DB::table('conceptos_cobro')
+                ->where('id', $conceptoConCargo->id)
+                ->update(['tipo' => 'ordinario']));
+            $this->fail('La base permitió reclasificar un concepto con cargos.');
+        } catch (QueryException $exception) {
+            $this->assertNotSame('', $exception->getMessage());
+        }
 
         $inactivo = $this->createConcept($edificio, 'MULTA-INACTIVA', [
             'tipo' => 'multa',

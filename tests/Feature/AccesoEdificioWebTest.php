@@ -59,20 +59,23 @@ final class AccesoEdificioWebTest extends TestCase
         $this->assertFalse($access->hasPermission($propertyManager->id, $otherBuilding->id, PermisoEdificio::MIEMBROS_GESTIONAR));
 
         $this->assertTrue($access->hasPermission($financeManager->id, $building->id, PermisoEdificio::CARGOS_GENERAR));
+        $this->assertTrue($access->hasPermission($financeManager->id, $building->id, PermisoEdificio::LECTURAS_REGISTRAR));
         $this->assertTrue($access->hasPermission($financeManager->id, $building->id, PermisoEdificio::PAGOS_ANULAR));
         $this->assertFalse($access->hasPermission($financeManager->id, $building->id, PermisoEdificio::ESTRUCTURA_GESTIONAR));
         $this->assertTrue($access->hasPermission($financeManager->id, $otherBuilding->id, PermisoEdificio::FINANZAS_VER));
         $this->assertFalse($access->hasPermission($financeManager->id, $otherBuilding->id, PermisoEdificio::CARGOS_GENERAR));
+        $this->assertFalse($access->hasPermission($financeManager->id, $otherBuilding->id, PermisoEdificio::LECTURAS_REGISTRAR));
 
         $this->assertTrue($access->hasPermission($viewer->id, $building->id, PermisoEdificio::FINANZAS_VER));
         $this->assertTrue($access->hasPermission($viewer->id, $building->id, PermisoEdificio::COMPROBANTES_VER));
         $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::PAGOS_REGISTRAR));
+        $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::LECTURAS_REGISTRAR));
         $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::MIEMBROS_VER));
 
         $this->actingAs($financeManager)
             ->get(route('cargos.index'))
             ->assertInertia(fn (Assert $page) => $page->has('edificios', 2));
-        foreach (['cargos.generate', 'cargos.create', 'pagos.create', 'conceptos.create'] as $routeName) {
+        foreach (['cargos.generate', 'cargos.create', 'pagos.create', 'conceptos.create', 'lecturas.create'] as $routeName) {
             $this->actingAs($financeManager)
                 ->get(route($routeName))
                 ->assertInertia(fn (Assert $page) => $page
@@ -122,22 +125,27 @@ final class AccesoEdificioWebTest extends TestCase
         $this->actingAs($viewer)->post(route('cargos.store', $building), [])->assertForbidden();
         $this->actingAs($viewer)->post(route('pagos.store', $building), [])->assertForbidden();
         $this->actingAs($viewer)->post(route('conceptos.store', $building), [])->assertForbidden();
+        $this->actingAs($viewer)->post(route('lecturas.store', $building), [])->assertForbidden();
         $this->actingAs($viewer)->get(route('cargos.index'))->assertOk();
         $this->actingAs($viewer)->get(route('pagos.index'))->assertOk();
+        $this->actingAs($viewer)->get(route('lecturas.index'))->assertOk();
         $this->actingAs($viewer)->get(route('cargos.generate'))->assertForbidden();
         $this->actingAs($viewer)->get(route('cargos.create'))->assertForbidden();
         $this->actingAs($viewer)->get(route('pagos.create'))->assertForbidden();
+        $this->actingAs($viewer)->get(route('lecturas.create'))->assertForbidden();
 
         $this->actingAs($propertyManager)->get(route('edificios.estructura', $building))->assertOk();
         $this->actingAs($propertyManager)->get(route('cargos.index'))->assertForbidden();
         $this->actingAs($propertyManager)->get(route('pagos.index'))->assertForbidden();
         $this->actingAs($propertyManager)->get(route('conceptos.index'))->assertForbidden();
         $this->actingAs($propertyManager)->get(route('cartera.index'))->assertForbidden();
+        $this->actingAs($propertyManager)->get(route('lecturas.index'))->assertForbidden();
         $this->actingAs($propertyManager)->get(route('cargos.generate'))->assertForbidden();
         $this->actingAs($propertyManager)->get(route('edificios.accesos.index', $building))->assertForbidden();
         $this->actingAs($financeManager)->get(route('cargos.generate'))->assertOk();
         $this->actingAs($financeManager)->get(route('cargos.create'))->assertOk();
         $this->actingAs($financeManager)->get(route('pagos.create'))->assertOk();
+        $this->actingAs($financeManager)->get(route('lecturas.create'))->assertOk();
     }
 
     public function test_administrator_invites_normalized_email_and_only_matching_user_accepts(): void

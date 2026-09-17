@@ -15,21 +15,26 @@ use Src\Edificio\Infrastructure\Models\DepartamentoEloquentModel;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Finanzas\Domain\Contracts\CargoRepositoryInterface;
 use Src\Finanzas\Domain\Enums\AlcanceTarifa;
+use Src\Finanzas\Domain\Enums\BaseCalculoInteres;
 use Src\Finanzas\Domain\Enums\EstadoCargo;
 use Src\Finanzas\Domain\Enums\EstadoConceptoCobro;
 use Src\Finanzas\Domain\Enums\EstadoLoteGeneracion;
+use Src\Finanzas\Domain\Enums\EstadoPago;
 use Src\Finanzas\Domain\Enums\FormaCalculoCobro;
 use Src\Finanzas\Domain\Enums\OrigenCargo;
 use Src\Finanzas\Domain\Enums\PeriodicidadCobro;
 use Src\Finanzas\Domain\Enums\TipoConceptoCobro;
 use Src\Finanzas\Infrastructure\Models\CargoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\ConceptoCobroEloquentModel;
+use Src\Finanzas\Infrastructure\Models\LecturaConsumoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\LoteGeneracionCargoEloquentModel;
 use Src\Finanzas\Infrastructure\Models\TarifaConceptoEloquentModel;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 
 final class EloquentCargoRepository implements CargoRepositoryInterface
 {
+    private const MAX_MONEY = '9999999999.9999';
+
     public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
 
     public function list(string $userId, array $filters): array
@@ -84,6 +89,11 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         return DB::transaction(function () use ($userId, $edificioId, $periodoDate, $conceptoId): array {
             $this->authorizedEdificio($userId, $edificioId, PermisoEdificio::CARGOS_GENERAR, true);
             $preview = $this->buildPreview($userId, $edificioId, $periodoDate, $conceptoId, true);
+            if ($this->moneyOutOfRange($preview['totalValor'])) {
+                throw ValidationException::withMessages([
+                    'periodo' => 'El total del lote supera la precisión monetaria permitida.',
+                ]);
+            }
             $lote = new LoteGeneracionCargoEloquentModel();
             $lote->edificio_id = $edificioId;
             $lote->fill([
@@ -113,6 +123,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
                 $cargo->departamento_id = $item['departamentoId'];
                 $cargo->concepto_cobro_id = $item['conceptoId'];
                 $cargo->tarifa_id = $item['tarifaId'];
+                $cargo->lectura_consumo_id = $item['lecturaConsumoId'];
                 $cargo->propietario_id = $item['propietarioId'];
                 $cargo->lote_generacion_id = $lote->id;
                 $cargo->fill([
@@ -328,7 +339,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
                 continue;
             }
             foreach ($departamentos as $departamento) {
-                $calculo = $this->calculate($concepto, $tarifa, $departamento, $periodo);
+                $calculo = $this->calculate($concepto, $tarifa, $departamento, $periodo, $lock);
                 if ($calculo['warning'] !== null) {
                     $omitidos++;
                     $advertencias[] = $this->warning([
@@ -347,6 +358,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
                     'concepto' => $concepto->codigo,
                     'formaCalculo' => $concepto->forma_calculo->value,
                     'tarifaId' => $tarifa->id,
+                    'lecturaConsumoId' => $calculo['lectura']['id'] ?? null,
                     'tarifa' => $tarifa->valor ?? $tarifa->porcentaje,
                     'base' => $calculo['base'],
                     'valor' => $calculo['valor'],
@@ -354,7 +366,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
                     'propietarioId' => $owners->count() === 1 ? $owners->first()['id'] : null,
                     'metadata' => [
                         'concepto' => ['id' => $concepto->id, 'codigo' => $concepto->codigo, 'nombre' => $concepto->nombre, 'tipo' => $concepto->tipo->value, 'periodicidad' => $concepto->periodicidad->value, 'formaCalculo' => $concepto->forma_calculo->value],
-                        'tarifa' => ['id' => $tarifa->id, 'valor' => $tarifa->valor, 'porcentaje' => $tarifa->porcentaje, 'montoTotal' => $tarifa->monto_total, 'numeroCuotas' => $tarifa->numero_cuotas, 'unidad' => $tarifa->unidad, 'fechaInicio' => $tarifa->fecha_inicio->format('Y-m-d')],
+                        'tarifa' => ['id' => $tarifa->id, 'valor' => $tarifa->valor, 'porcentaje' => $tarifa->porcentaje, 'montoTotal' => $tarifa->monto_total, 'numeroCuotas' => $tarifa->numero_cuotas, 'unidad' => $tarifa->unidad, 'baseCalculo' => $tarifa->base_calculo?->value, 'fechaInicio' => $tarifa->fecha_inicio->format('Y-m-d')],
                         'departamento' => ['id' => $departamento->id, 'codigo' => $departamento->codigo, 'alicuota' => $departamento->alicuota],
                         'propietarios' => $owners->all(),
                         'calculo' => $calculo,
@@ -445,17 +457,70 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
         return $query->count();
     }
 
-    /** @return array{valor: string, base: string|null, warning: string|null, message: string|null, cuota: int|null} */
-    private function calculate(ConceptoCobroEloquentModel $concepto, TarifaConceptoEloquentModel $tarifa, DepartamentoEloquentModel $departamento, CarbonImmutable $periodo): array
+    /** @return array<string, mixed> */
+    private function calculate(
+        ConceptoCobroEloquentModel $concepto,
+        TarifaConceptoEloquentModel $tarifa,
+        DepartamentoEloquentModel $departamento,
+        CarbonImmutable $periodo,
+        bool $lock,
+    ): array
     {
         if ($concepto->forma_calculo === FormaCalculoCobro::MANUAL) {
             return ['valor' => '0.0000', 'base' => null, 'warning' => 'CONCEPTO_MANUAL', 'message' => 'Los conceptos manuales no se generan automáticamente.', 'cuota' => null];
         }
         if ($concepto->forma_calculo === FormaCalculoCobro::POR_CONSUMO) {
-            return ['valor' => '0.0000', 'base' => null, 'warning' => 'CONSUMO_NO_DISPONIBLE', 'message' => 'No existe una lectura de consumo para el período.', 'cuota' => null];
+            $query = LecturaConsumoEloquentModel::query()
+                ->where('edificio_id', $concepto->edificio_id)
+                ->where('departamento_id', $departamento->id)
+                ->where('concepto_cobro_id', $concepto->id)
+                ->whereDate('periodo', $periodo->format('Y-m-d'));
+            if ($lock) {
+                $query->lockForUpdate();
+            }
+            $lectura = $query->first();
+            if ($lectura === null) {
+                return ['valor' => '0.0000', 'base' => null, 'warning' => 'CONSUMO_NO_DISPONIBLE', 'message' => 'No existe una lectura de consumo para el período.', 'cuota' => null];
+            }
+            if ($tarifa->valor === null || $tarifa->unidad === null) {
+                return ['valor' => '0.0000', 'base' => $lectura->consumo, 'warning' => 'TARIFA_INCOMPLETA', 'message' => 'La tarifa no contiene el precio y la unidad requeridos.', 'cuota' => null];
+            }
+            if (trim($tarifa->unidad) !== $lectura->unidad) {
+                return ['valor' => '0.0000', 'base' => $lectura->consumo, 'warning' => 'UNIDAD_CONSUMO_INCONSISTENTE', 'message' => 'La unidad de la lectura no coincide con la tarifa del período.', 'cuota' => null];
+            }
+            $valor = $this->roundMoney(bcmul($lectura->consumo, $tarifa->valor, 8));
+            $snapshot = [
+                'id' => $lectura->id,
+                'periodo' => $lectura->periodo->format('Y-m'),
+                'fechaLectura' => $lectura->fecha_lectura->format('Y-m-d'),
+                'lecturaAnterior' => $lectura->lectura_anterior,
+                'lecturaActual' => $lectura->lectura_actual,
+                'consumo' => $lectura->consumo,
+                'unidad' => $lectura->unidad,
+            ];
+            if ($this->moneyOutOfRange($valor)) {
+                return ['valor' => '0.0000', 'base' => $lectura->consumo, 'warning' => 'VALOR_FUERA_DE_RANGO', 'message' => 'El cálculo supera la precisión monetaria permitida.', 'cuota' => null, 'lectura' => $snapshot];
+            }
+            if (bccomp($valor, '0.0000', 4) === 0) {
+                return ['valor' => '0.0000', 'base' => $lectura->consumo, 'warning' => 'VALOR_CERO', 'message' => 'Los cargos automáticos con valor cero se omiten.', 'cuota' => null, 'lectura' => $snapshot];
+            }
+
+            return ['valor' => $valor, 'base' => $lectura->consumo, 'warning' => null, 'message' => null, 'cuota' => null, 'lectura' => $snapshot];
         }
         if ($concepto->forma_calculo === FormaCalculoCobro::PORCENTAJE) {
-            return ['valor' => '0.0000', 'base' => null, 'warning' => 'BASE_NO_DISPONIBLE', 'message' => 'La forma porcentual requiere una base financiera aún no definida.', 'cuota' => null];
+            if ($tarifa->porcentaje === null || $tarifa->base_calculo === null) {
+                return ['valor' => '0.0000', 'base' => null, 'warning' => 'BASE_PORCENTAJE_NO_DISPONIBLE', 'message' => 'La tarifa porcentual no define porcentaje y base de cálculo.', 'cuota' => null];
+            }
+            $base = $this->percentageBase($tarifa->base_calculo, $departamento, $periodo, $lock);
+            $valor = $this->roundMoney(bcdiv(bcmul($base, $tarifa->porcentaje, 10), '100', 8));
+            if ($this->moneyOutOfRange($valor)) {
+                return ['valor' => '0.0000', 'base' => $base, 'warning' => 'VALOR_FUERA_DE_RANGO', 'message' => 'El cálculo supera la precisión monetaria permitida.', 'cuota' => null, 'baseCalculo' => $tarifa->base_calculo->value, 'fechaCorte' => $periodo->format('Y-m-d')];
+            }
+            if (bccomp($valor, '0.0000', 4) === 0) {
+                return ['valor' => '0.0000', 'base' => $base, 'warning' => 'VALOR_CERO', 'message' => 'Los cargos automáticos con valor cero se omiten.', 'cuota' => null, 'baseCalculo' => $tarifa->base_calculo->value, 'fechaCorte' => $periodo->format('Y-m-d')];
+            }
+
+            return ['valor' => $valor, 'base' => $base, 'warning' => null, 'message' => null, 'cuota' => null, 'baseCalculo' => $tarifa->base_calculo->value, 'fechaCorte' => $periodo->format('Y-m-d')];
         }
 
         $valor = $tarifa->valor;
@@ -476,11 +541,61 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
             $base ??= $valor;
             $valor = $this->roundMoney(bcdiv(bcmul($valor, $departamento->alicuota, 10), '100', 8));
         }
+        if ($this->moneyOutOfRange($valor)) {
+            return ['valor' => '0.0000', 'base' => $base, 'warning' => 'VALOR_FUERA_DE_RANGO', 'message' => 'El cálculo supera la precisión monetaria permitida.', 'cuota' => $cuota];
+        }
         if (bccomp($valor, '0.0000', 4) === 0) {
             return ['valor' => '0.0000', 'base' => $base, 'warning' => 'VALOR_CERO', 'message' => 'Los cargos automáticos con valor cero se omiten.', 'cuota' => $cuota];
         }
 
         return ['valor' => $valor, 'base' => $base, 'warning' => null, 'message' => null, 'cuota' => $cuota];
+    }
+
+    private function percentageBase(
+        BaseCalculoInteres $baseCalculo,
+        DepartamentoEloquentModel $departamento,
+        CarbonImmutable $periodo,
+        bool $lock,
+    ): string {
+        $query = CargoEloquentModel::query()
+            ->where('edificio_id', $departamento->edificio_id)
+            ->where('departamento_id', $departamento->id)
+            ->whereDate('fecha_emision', '<', $periodo->format('Y-m-d'))
+            ->where(static fn (Builder $query) => $query
+                ->where('estado', '!=', EstadoCargo::ANULADO->value)
+                ->orWhere('anulado_at', '>=', $periodo))
+            ->with(['concepto', 'aplicacionesPago.pago'])
+            ->orderBy('id');
+        if (in_array($baseCalculo, [BaseCalculoInteres::SALDO_VENCIDO, BaseCalculoInteres::CAPITAL_VENCIDO], true)) {
+            $query->whereDate('fecha_vencimiento', '<', $periodo->format('Y-m-d'));
+        }
+        if ($baseCalculo === BaseCalculoInteres::CAPITAL_VENCIDO) {
+            $query->whereHas('concepto', static fn (Builder $query) => $query
+                ->where('tipo', '!=', TipoConceptoCobro::INTERES->value));
+        }
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get()->reduce(function (string $total, CargoEloquentModel $cargo) use ($periodo): string {
+            $saldoAlCorte = $cargo->valor_original;
+            foreach ($cargo->aplicacionesPago as $aplicacion) {
+                $pago = $aplicacion->pago;
+                if ($pago !== null
+                    && $pago->fecha_pago->lessThan($periodo)
+                    && $aplicacion->created_at?->lessThan($periodo)
+                    && ($pago->estado === EstadoPago::REGISTRADO
+                        || ($pago->estado === EstadoPago::ANULADO
+                            && $pago->anulado_at !== null
+                            && ! $pago->anulado_at->lessThan($periodo)))) {
+                    $saldoAlCorte = bcsub($saldoAlCorte, $aplicacion->monto_aplicado, 4);
+                }
+            }
+
+            return bccomp($saldoAlCorte, '0.0000', 4) > 0
+                ? bcadd($total, $saldoAlCorte, 4)
+                : $total;
+        }, '0.0000');
     }
 
     /** @return Collection<int, array{id: string, nombre: string, identificacion: string, porcentaje: string}> */
@@ -578,6 +693,7 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
             'concepto' => $cargo->concepto?->nombre,
             'codigoConcepto' => $cargo->concepto?->codigo,
             'tarifaId' => $cargo->tarifa_id,
+            'lecturaConsumoId' => $cargo->lectura_consumo_id,
             'periodo' => $cargo->periodo->format('Y-m'),
             'fechaEmision' => $cargo->fecha_emision->format('Y-m-d'),
             'fechaVencimiento' => $cargo->fecha_vencimiento->format('Y-m-d'),
@@ -653,5 +769,10 @@ final class EloquentCargoRepository implements CargoRepositoryInterface
     private function roundMoney(string $value): string
     {
         return bcadd($value, '0.00005', 4);
+    }
+
+    private function moneyOutOfRange(string $value): bool
+    {
+        return bccomp($value, self::MAX_MONEY, 4) > 0;
     }
 }

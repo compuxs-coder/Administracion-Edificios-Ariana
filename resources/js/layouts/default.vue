@@ -55,6 +55,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/conceptos'),
   hidden: !canAny('finanzas.ver')
 }, {
+  label: 'Lecturas de consumo',
+  icon: 'i-lucide-gauge',
+  to: '/lecturas',
+  onSelect: () => navigateTo('/lecturas'),
+  hidden: !canAny('finanzas.ver')
+}, {
   label: 'Cargos',
   icon: 'i-lucide-receipt-text',
   to: '/cargos',
