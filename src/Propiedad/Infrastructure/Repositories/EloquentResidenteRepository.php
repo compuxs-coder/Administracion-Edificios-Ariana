@@ -16,10 +16,14 @@ use Src\Propiedad\Domain\Enums\TipoPersona;
 use Src\Propiedad\Infrastructure\Models\DepartamentoResidenteEloquentModel;
 use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
 use Src\Propiedad\Infrastructure\Models\TerceroEloquentModel;
+use Src\Propiedad\Application\Services\TerceroIdentityAuthorizationService;
 
 final class EloquentResidenteRepository implements ResidenteRepositoryInterface
 {
-    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+    public function __construct(
+        private readonly AccesoEdificioRepositoryInterface $access,
+        private readonly TerceroIdentityAuthorizationService $identityAccess,
+    ) {}
 
     public function paginateForUser(string $userId, array $filters): array
     {
@@ -148,7 +152,7 @@ final class EloquentResidenteRepository implements ResidenteRepositoryInterface
 
             if ($tercero !== null) {
                 if ($tercero->tipo_persona !== TipoPersona::PERSONA_NATURAL
-                    || ! $this->userCanManageTercero($userId, $tercero)) {
+                    || ! $this->identityAccess->allows($userId, $tercero)) {
                     throw ValidationException::withMessages([
                         'identificacion' => 'La identificación ya está registrada y no está disponible.',
                     ]);
@@ -189,6 +193,9 @@ final class EloquentResidenteRepository implements ResidenteRepositoryInterface
             $residente = ResidenteEloquentModel::query()->lockForUpdate()->findOrFail($residenteId);
             $this->assertUserCanManage($userId, $residente);
             $tercero = TerceroEloquentModel::query()->lockForUpdate()->findOrFail($residente->tercero_id);
+            if (! $this->identityAccess->allows($userId, $tercero)) {
+                abort(403);
+            }
             $identity = $this->identityData($data);
             $conflict = TerceroEloquentModel::query()
                 ->where('tipo_identificacion', $identity['tipo_identificacion'])
@@ -270,6 +277,7 @@ final class EloquentResidenteRepository implements ResidenteRepositoryInterface
             'observaciones' => $model->observaciones,
             'ocupacionesActualesCount' => (int) ($model->ocupaciones_actuales_count ?? 0),
             'puedeGestionar' => $this->userCanManage($userId, $model),
+            'puedeEditarIdentidad' => $this->identityAccess->allows($userId, $model->tercero),
             'createdAt' => $model->created_at?->toIso8601String(),
             'updatedAt' => $model->updated_at?->toIso8601String(),
         ];

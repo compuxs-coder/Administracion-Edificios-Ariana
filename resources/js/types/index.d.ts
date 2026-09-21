@@ -200,6 +200,7 @@ export interface Propietario {
   observaciones: string | null
   propiedadesActualesCount: number
   puedeGestionar: boolean | null
+  puedeEditarIdentidad: boolean | null
   propiedadesActuales?: PropiedadDepartamento[]
   historialPropiedades?: PropiedadDepartamento[]
   createdAt: string | null
@@ -281,6 +282,7 @@ export interface Residente {
   observaciones: string | null
   ocupacionesActualesCount: number
   puedeGestionar: boolean
+  puedeEditarIdentidad: boolean
   ocupacionesActuales?: OcupacionResidente[]
   historialOcupaciones?: OcupacionResidente[]
   createdAt: string | null
@@ -671,4 +673,194 @@ export interface EstadoCuenta {
   saldoFinal: { neto: string, deudor: string, acreedor: string }
   resumen: { debitos: string, creditos: string }
   movimientos: EstadoCuentaMovimiento[]
+}
+
+export type EstadoProveedor = 'activo' | 'inactivo'
+
+export interface Proveedor {
+  id: string
+  terceroId: string
+  edificioId: string
+  edificio: string | null
+  tipoPersona: TipoPersona
+  nombres: string | null
+  apellidos: string | null
+  razonSocial: string | null
+  nombre: string
+  tipoIdentificacion: TipoIdentificacion
+  identificacion: string
+  telefonoIdentidad: string | null
+  celular: string | null
+  correoIdentidad: string | null
+  direccionIdentidad: string | null
+  nombreComercial: string | null
+  contacto: string | null
+  telefono: string | null
+  correo: string | null
+  direccion: string | null
+  diasCredito: number | null
+  observaciones: string | null
+  estado: EstadoProveedor
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface ProveedorFormData {
+  edificio_id: string
+  tipo_persona: TipoPersona
+  nombres: string
+  apellidos: string
+  razon_social: string
+  tipo_identificacion: TipoIdentificacion
+  identificacion: string
+  telefono: string
+  celular: string
+  correo: string
+  direccion: string
+  nombre_comercial: string
+  contacto: string
+  telefono_comercial: string
+  correo_comercial: string
+  direccion_comercial: string
+  dias_credito: string
+  observaciones: string
+}
+
+export interface ProveedorOption {
+  id: string
+  edificioId: string
+  nombre: string
+  identificacion: string
+  estado?: EstadoProveedor
+}
+
+export type EstadoContratoProveedor = 'borrador' | 'registrado' | 'anulado'
+
+export interface ContratoProveedor {
+  id: string
+  edificioId: string
+  edificio: string | null
+  proveedorId: string
+  proveedor: string
+  referencia: string
+  objeto: string
+  fechaInicio: string
+  fechaFin: string | null
+  montoTotal: string | null
+  observaciones: string | null
+  estado: EstadoContratoProveedor
+  proveedorSnapshot: {
+    proveedorId: string
+    terceroId: string
+    tipoPersona: TipoPersona
+    nombre: string
+    tipoIdentificacion: TipoIdentificacion
+    identificacion: string
+    nombreComercial: string | null
+    correo: string | null
+    telefono: string | null
+  } | null
+  registradoAt: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface ContratoProveedorFormData {
+  edificio_id: string
+  proveedor_id: string
+  referencia: string
+  objeto: string
+  fecha_inicio: string
+  fecha_fin: string
+  monto_total: string
+  observaciones: string
+}
+
+export interface ContratoProveedorOption {
+  id: string
+  edificioId: string
+  proveedorId: string
+  referencia: string
+  objeto: string
+  estado: EstadoContratoProveedor
+}
+
+export type EstadoGasto = 'borrador' | 'registrado' | 'anulado'
+export type TipoPagoGasto = 'contado' | 'credito'
+export type EstadoPagoGasto = 'pendiente' | 'pagado' | 'anulado'
+
+export interface Gasto {
+  id: string
+  edificioId: string
+  edificio: string | null
+  proveedorId: string
+  proveedor: string
+  contratoId: string | null
+  numero: string | null
+  fechaGasto: string
+  concepto: string
+  fechaVencimiento: string | null
+  referencia: string | null
+  monto: string
+  tipoPago: TipoPagoGasto
+  estadoPago: EstadoPagoGasto | null
+  pagadoAt: string | null
+  observaciones: string | null
+  estado: EstadoGasto
+  proveedorSnapshot: ContratoProveedor['proveedorSnapshot']
+  contratoSnapshot: {
+    contratoId: string
+    referencia: string
+    objeto: string
+    fechaInicio: string
+    fechaFin: string | null
+    montoTotal: string | null
+    proveedor: ContratoProveedor['proveedorSnapshot']
+  } | null
+  registradoAt: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  cuentaPorPagarId: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface GastoFormData {
+  edificio_id: string
+  proveedor_id: string
+  contrato_id: string
+  fecha_gasto: string
+  concepto: string
+  fecha_vencimiento: string
+  referencia: string
+  monto: string
+  tipo_pago: TipoPagoGasto
+  observaciones: string
+}
+
+export type EstadoCuentaPorPagar = 'pendiente' | 'anulada'
+
+export interface CuentaPorPagar {
+  id: string
+  edificioId: string
+  edificio: string | null
+  proveedorId: string
+  proveedor: string
+  gastoId: string
+  numeroGasto: string
+  fechaVencimiento: string
+  montoOriginal: string
+  saldo: string
+  estado: EstadoCuentaPorPagar
+  anuladoAt: string | null
+  createdAt: string | null
+}
+
+export interface CuentasPorPagarResumen {
+  totalPendiente: string
+  totalVencido: string
+  porVencer: string
+  cantidadPendiente: number
 }

@@ -44,9 +44,9 @@ const changeStatus = () => {
       <UDashboardNavbar :title="residente.nombre">
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
-          <div v-if="residente.puedeGestionar" class="flex gap-2">
-            <UButton color="neutral" icon="i-lucide-pencil" label="Editar" variant="outline" :ui="{ label: 'hidden sm:inline' }" @click="router.visit(route('residentes.edit', residente.id))" />
-            <UButton :color="residente.estado === 'activo' ? 'error' : 'success'" :icon="residente.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'" :label="residente.estado === 'activo' ? 'Inactivar' : 'Activar'" :ui="{ label: 'hidden sm:inline' }" variant="outline" @click="openStatus" />
+          <div v-if="residente.puedeGestionar || residente.puedeEditarIdentidad" class="flex gap-2">
+            <UButton v-if="residente.puedeEditarIdentidad" color="neutral" icon="i-lucide-pencil" label="Editar" variant="outline" :ui="{ label: 'hidden sm:inline' }" @click="router.visit(route('residentes.edit', residente.id))" />
+            <UButton v-if="residente.puedeGestionar" :color="residente.estado === 'activo' ? 'error' : 'success'" :icon="residente.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'" :label="residente.estado === 'activo' ? 'Inactivar' : 'Activar'" :ui="{ label: 'hidden sm:inline' }" variant="outline" @click="openStatus" />
           </div>
         </template>
       </UDashboardNavbar>

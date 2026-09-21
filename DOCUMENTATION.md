@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica y finanzas con lecturas, consumos, cálculos porcentuales, cargos, pagos, cartera, recibos y evidencias son módulos funcionales. Gastos y operaciones todavía no están implementados.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar y el contexto de proveedores, contratos, gastos y cuentas por pagar son módulos funcionales. Operaciones, desembolsos y conciliación bancaria todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -56,10 +56,10 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 20 permisos y administración de miembros |
+| `administrador` | Los 23 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
-| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes y evidencias |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas y comprobantes |
+| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores y gastos |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos y cuentas por pagar |
 
 Permisos:
 
@@ -72,6 +72,7 @@ finanzas.ver                    conceptos.gestionar              lecturas.regist
 cargos.generar                  cargos.crear                     cargos.anular
 pagos.registrar                 pagos.aplicar_saldo              pagos.anular
 comprobantes.ver                evidencias.gestionar
+gastos.ver                      gastos.gestionar                 gastos.anular
 ```
 
 Reglas de seguridad:
@@ -115,6 +116,7 @@ Durante la transición:
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
 - Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
 - Conceptos de cobro, tarifas, lecturas de consumo, cargos y sus alcances por departamento residen en `administracion_edificios`.
+- Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar y consecutivos de gasto residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -211,7 +213,7 @@ Reglas de negocio:
 - PostgreSQL serializa operaciones por departamento y rechaza solapamientos, sobreparticipación, mutación histórica, borrado y titularidades activas de propietarios inactivos.
 - La identidad histórica queda congelada dentro de cada titularidad.
 - La consulta exige `propiedad.ver` y los cambios exigen `propiedad.gestionar` en el edificio correspondiente.
-- Una identidad compartida sólo puede editarse si el usuario tiene `propiedad.gestionar` en todos sus edificios vinculados.
+- Una identidad compartida sólo puede editarse si el usuario tiene el permiso de gestión correspondiente en todos los edificios vinculados por Propiedad y Gastos.
 
 Reglas de residentes y ocupación:
 
@@ -345,6 +347,62 @@ GET    /edificios/{edificio}/departamentos/{departamento}/estado-cuenta
 ```
 
 El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crear cargos ni lotes. El scheduler lo ejecuta diariamente a las 01:10 y la idempotencia impide duplicación.
+
+## Módulo Gastos
+
+El contexto `src/Gastos` implementa el directorio de proveedores, contratos, gastos y la consulta de cuentas por pagar. No registra pagos salientes, transferencias ni conciliación bancaria.
+
+Tablas:
+
+- `proveedores`: perfil global enlazado uno a uno con `terceros`.
+- `proveedor_edificio`: estado, nombre comercial, contacto, plazo de crédito y observaciones locales al edificio.
+- `contratos_proveedor`: condiciones contractuales, snapshots y trazabilidad de registro/anulación.
+- `gastos`: documento, monto `numeric(14,4)`, condición de pago, snapshots, consecutivo y trazabilidad.
+- `cuentas_por_pagar`: obligación de consulta creada exclusivamente por gastos a crédito registrados.
+- `consecutivos_gasto`: contador global anual bloqueado para números `GAS-AAAA-NNNNNN`.
+
+Reglas de negocio:
+
+- La identidad del proveedor reutiliza `terceros`; sus datos comerciales y estado no se comparten entre edificios.
+- Contratos y gastos nacen como borrador, sólo se editan en ese estado, se registran una vez y sólo un documento registrado puede anularse.
+- Registrar congela el proveedor y, cuando aplica, el contrato. La información registrada no se reescribe si cambia el directorio.
+- Un gasto de contado queda `pagado` y no genera cuenta por pagar. Un gasto a crédito queda `pendiente` y genera exactamente una cuenta con saldo igual al monto original.
+- La anulación conserva todos los documentos y anula la cuenta asociada dentro de la misma transacción.
+- Listados, opciones y resúmenes se filtran por edificios donde el usuario posee `gastos.ver`; las mutaciones revalidan `gastos.gestionar` o `gastos.anular` sobre el edificio exacto.
+- Las FKs compuestas y guards de base impiden cruces de edificio, eliminación, transiciones inválidas y mutación histórica.
+- Modificar una identidad usada por Propiedad y Gastos requiere administrar todos sus edificios vinculados en ambos contextos.
+
+Rutas principales:
+
+```text
+GET    /proveedores
+GET    /proveedores/create
+POST   /edificios/{edificio}/proveedores
+GET    /edificios/{edificio}/proveedores/{proveedor}
+GET    /edificios/{edificio}/proveedores/{proveedor}/edit
+PUT    /edificios/{edificio}/proveedores/{proveedor}
+PATCH  /edificios/{edificio}/proveedores/{proveedor}/estado
+GET    /contratos-proveedor
+GET    /contratos-proveedor/create
+POST   /edificios/{edificio}/contratos-proveedor
+GET    /edificios/{edificio}/contratos-proveedor/{contrato}
+GET    /edificios/{edificio}/contratos-proveedor/{contrato}/edit
+PUT    /edificios/{edificio}/contratos-proveedor/{contrato}
+PATCH  /edificios/{edificio}/contratos-proveedor/{contrato}/registrar
+PATCH  /edificios/{edificio}/contratos-proveedor/{contrato}/anular
+GET    /gastos
+GET    /gastos/create
+POST   /edificios/{edificio}/gastos
+GET    /edificios/{edificio}/gastos/{gasto}
+GET    /edificios/{edificio}/gastos/{gasto}/edit
+PUT    /edificios/{edificio}/gastos/{gasto}
+PATCH  /edificios/{edificio}/gastos/{gasto}/registrar
+PATCH  /edificios/{edificio}/gastos/{gasto}/anular
+GET    /cuentas-por-pagar
+GET    /edificios/{edificio}/cuentas-por-pagar/{cuenta}
+```
+
+No existen rutas destructivas para proveedores, asociaciones, contratos, gastos ni cuentas por pagar.
 
 ## Módulos transitorios
 

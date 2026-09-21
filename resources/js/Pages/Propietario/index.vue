@@ -93,7 +93,7 @@ const changeStatus = () => {
                 <td class="px-4 py-3"><UBadge :color="propietario.estado === 'activo' ? 'success' : 'neutral'" :label="propietario.estado === 'activo' ? 'Activo' : 'Inactivo'" variant="subtle" /></td>
                 <td class="px-4 py-3"><div class="flex justify-end gap-1">
                   <UButton color="neutral" icon="i-lucide-eye" variant="ghost" aria-label="Ver propietario" @click="router.visit(route('propietarios.show', propietario.id))" />
-                   <UButton v-if="propietario.puedeGestionar" color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar propietario" @click="router.visit(route('propietarios.edit', propietario.id))" />
+                   <UButton v-if="propietario.puedeEditarIdentidad" color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar propietario" @click="router.visit(route('propietarios.edit', propietario.id))" />
                    <UButton v-if="propietario.puedeGestionar" :color="propietario.estado === 'activo' ? 'error' : 'success'" :icon="propietario.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'" variant="ghost" aria-label="Cambiar estado" @click="confirmStatus(propietario)" />
                 </div></td>
               </tr>

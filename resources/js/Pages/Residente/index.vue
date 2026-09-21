@@ -118,7 +118,7 @@ const changeStatus = () => {
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-1">
                     <UButton color="neutral" icon="i-lucide-eye" variant="ghost" aria-label="Ver residente" @click="router.visit(route('residentes.show', residente.id))" />
-                    <UButton v-if="residente.puedeGestionar" color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar residente" @click="router.visit(route('residentes.edit', residente.id))" />
+                    <UButton v-if="residente.puedeEditarIdentidad" color="neutral" icon="i-lucide-pencil" variant="ghost" aria-label="Editar residente" @click="router.visit(route('residentes.edit', residente.id))" />
                     <UButton v-if="residente.puedeGestionar" :color="residente.estado === 'activo' ? 'error' : 'success'" :icon="residente.estado === 'activo' ? 'i-lucide-circle-pause' : 'i-lucide-circle-play'" variant="ghost" aria-label="Cambiar estado" @click="confirmStatus(residente)" />
                   </div>
                 </td>

@@ -33,6 +33,14 @@ use Src\Finanzas\Infrastructure\Repositories\EloquentLecturaConsumoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentReciboPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
+use Src\Gastos\Domain\Contracts\ContratoProveedorRepositoryInterface;
+use Src\Gastos\Domain\Contracts\CuentaPorPagarRepositoryInterface;
+use Src\Gastos\Domain\Contracts\GastoRepositoryInterface;
+use Src\Gastos\Domain\Contracts\ProveedorRepositoryInterface;
+use Src\Gastos\Infrastructure\Repositories\EloquentContratoProveedorRepository;
+use Src\Gastos\Infrastructure\Repositories\EloquentCuentaPorPagarRepository;
+use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
+use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
 use Src\Propiedad\Application\Policies\ResidentePolicy;
 use Src\Propiedad\Domain\Contracts\OcupacionRepositoryInterface;
@@ -53,6 +61,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Edificio',
         'Propiedad',
         'Finanzas',
+        'Gastos',
         'Cliente',
         'Categoria',
         'Producto',
@@ -80,6 +89,10 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(PagoRepositoryInterface::class, EloquentPagoRepository::class);
         $this->app->bind(ReciboPagoRepositoryInterface::class, EloquentReciboPagoRepository::class);
         $this->app->bind(TarifaConceptoRepositoryInterface::class, EloquentTarifaConceptoRepository::class);
+        $this->app->bind(ProveedorRepositoryInterface::class, EloquentProveedorRepository::class);
+        $this->app->bind(ContratoProveedorRepositoryInterface::class, EloquentContratoProveedorRepository::class);
+        $this->app->bind(GastoRepositoryInterface::class, EloquentGastoRepository::class);
+        $this->app->bind(CuentaPorPagarRepositoryInterface::class, EloquentCuentaPorPagarRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

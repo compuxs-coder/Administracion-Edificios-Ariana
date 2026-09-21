@@ -16,10 +16,14 @@ use Src\Propiedad\Domain\Enums\TipoPersona;
 use Src\Propiedad\Infrastructure\Models\DepartamentoPropietarioEloquentModel;
 use Src\Propiedad\Infrastructure\Models\PropietarioEloquentModel;
 use Src\Propiedad\Infrastructure\Models\TerceroEloquentModel;
+use Src\Propiedad\Application\Services\TerceroIdentityAuthorizationService;
 
 final class EloquentPropietarioRepository implements PropietarioRepositoryInterface
 {
-    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+    public function __construct(
+        private readonly AccesoEdificioRepositoryInterface $access,
+        private readonly TerceroIdentityAuthorizationService $identityAccess,
+    ) {}
 
     public function paginateForUser(string $userId, array $filters): array
     {
@@ -151,12 +155,9 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
                 ->first();
 
             if ($tercero !== null) {
-                $residentIsVisible = $tercero->residente()
-                    ->whereHas('edificios', static fn (Builder $query) => $query->whereKey($edificioId))
-                    ->exists();
                 if ($tercero->propietario()->exists()
                     || $tercero->tipo_persona->value !== $identity['tipo_persona']
-                    || ! $residentIsVisible) {
+                    || ! $this->identityAccess->allows($userId, $tercero)) {
                     throw ValidationException::withMessages([
                         'identificacion' => 'Ya existe una identidad con este tipo e identificación.',
                     ]);
@@ -206,6 +207,9 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
                 ->findOrFail($propietarioId);
             $this->assertUserCanManage($userId, $propietario);
             $tercero = TerceroEloquentModel::query()->lockForUpdate()->findOrFail($propietario->tercero_id);
+            if (! $this->identityAccess->allows($userId, $tercero)) {
+                abort(403);
+            }
             $identity = $this->identityData($data);
             if ($identity['tipo_persona'] !== TipoPersona::PERSONA_NATURAL->value
                 && $tercero->residente()->exists()) {
@@ -330,6 +334,9 @@ final class EloquentPropietarioRepository implements PropietarioRepositoryInterf
             'observaciones' => $model->observaciones,
             'propiedadesActualesCount' => (int) ($model->propiedades_actuales_count ?? 0),
             'puedeGestionar' => $userId === null ? null : $this->userCanManage($userId, $model),
+            'puedeEditarIdentidad' => $userId === null || $model->tercero === null
+                ? null
+                : $this->identityAccess->allows($userId, $model->tercero),
             'createdAt' => $model->created_at?->toIso8601String(),
             'updatedAt' => $model->updated_at?->toIso8601String(),
         ];

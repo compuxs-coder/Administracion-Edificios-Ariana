@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, y Finanzas configura conceptos y tarifas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar y `Gastos` administra proveedores, contratos, gastos y cuentas por pagar. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -29,8 +29,8 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
-3. Los 20 permisos se agrupan en edificio, miembros, estructura, propiedad y finanzas. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes y evidencias; `consulta` sólo dispone de lectura.
+3. Los 23 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas y gastos. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores y gastos; `consulta` sólo dispone de lectura, incluido `gastos.ver`.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -69,7 +69,7 @@ Decisiones implementadas:
 El contexto `Propiedad` separa identidades y perfiles de dominio:
 
 1. `Tercero` es una identidad global natural o jurídica y no es un usuario de autenticación.
-2. `Propietario` y `Residente` son perfiles de esa identidad; una persona natural puede cumplir ambos sin duplicarse.
+2. `Propietario`, `Residente` y `Proveedor` son perfiles de esa identidad; una persona natural puede cumplir varios sin duplicarse.
 3. `propietario_edificio` y `residente_edificio` delimitan qué administradores pueden consultar cada perfil.
 4. `departamento_propietarios` representa la titularidad temporal, su porcentaje y su historial.
 5. `departamento_residentes` representa la ocupación temporal y su historial, sin alterar la titularidad.
@@ -85,7 +85,7 @@ Reglas implementadas:
 - Las titularidades finalizadas son inmutables y no pueden eliminarse.
 - PostgreSQL impide inactivar propietarios con titularidades activas y crear titularidades activas de propietarios inactivos.
 - Cada titularidad conserva un snapshot del nombre e identificación utilizados al iniciarla.
-- Modificar una identidad global exige acceso administrativo a todos los edificios vinculados.
+- Modificar una identidad global exige acceso administrativo a todos los edificios vinculados por Propiedad y Gastos.
 - Ser propietario no concede acceso mediante `edificio_usuario` ni crea una cuenta en `users`.
 
 ## Residentes y ocupación
@@ -173,6 +173,21 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 12 c
 - Los KPIs se calculan antes de paginar. Morosidad es departamentos con saldo vencido dividido por departamentos incluidos en el filtro.
 - El estado de cuenta es cronológico y contable: cargo es débito, pago es crédito y cada anulación revierte su documento. Las aplicaciones se muestran como trazabilidad del pago y no se suman otra vez.
 
+## Gastos y proveedores
+
+ETAPA 13 incorpora el contexto `Gastos` para administrar egresos comprometidos sin modelar todavía desembolsos ni conciliación bancaria:
+
+- `proveedores` enlaza un único perfil global con `terceros`; `proveedor_edificio` conserva estado y condiciones comerciales independientes por edificio.
+- `contratos_proveedor` y `gastos` usan el ciclo `borrador -> registrado -> anulado`. Sólo el borrador es editable y ninguna entidad dispone de eliminación física.
+- Registrar congela snapshots del proveedor y del contrato opcional. Los documentos registrados permanecen inmutables salvo su anulación trazable con usuario, fecha y motivo.
+- Cada gasto registrado recibe un consecutivo global anual `GAS-AAAA-NNNNNN`, asignado mediante un contador bloqueado dentro de la transacción.
+- Un gasto de contado queda pagado al registrarse y no genera una entidad de pago. Un gasto a crédito exige vencimiento y crea exactamente una `cuenta_por_pagar` pendiente por el monto completo.
+- Anular el gasto anula también su cuenta por pagar, conserva saldo y monto histórico, y no crea movimientos de desembolso.
+- FKs compuestas entre edificio, proveedor, contrato, gasto y cuenta por pagar impiden relaciones cruzadas. Repositorios y requests vuelven a validar el permiso y el edificio exactos.
+- Los permisos son `gastos.ver`, `gastos.gestionar` y `gastos.anular`. Administrador y gestor financiero reciben los tres; consulta sólo lectura; gestor de propiedad ninguno.
+- La edición de una identidad global compartida exige permisos de gestión sobre todos los edificios vinculados por perfiles de propietario, residente y proveedor.
+- PostgreSQL protege importes, fechas, transiciones, snapshots, inmutabilidad y correspondencia diferida entre gasto y cuenta por pagar. SQLite conserva guards equivalentes para la suite donde la comprobación diferida no es viable.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -180,7 +195,7 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 12 c
 | Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
 | Identidad y acceso | Usuarios, roles múltiples, permisos, invitaciones y auditoría por edificio implementados |
 | Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
-| Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar |
+| Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar implementados; desembolsos y conciliación fuera de alcance |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
 | Comunicación | Comunicados, documentos y notificaciones |
@@ -188,7 +203,6 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 12 c
 
 ## Decisiones pendientes
 
-- Extender los perfiles de la identidad reutilizable cuando se incorporen proveedores u otros terceros.
 - Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
 - Definir requerimientos mínimos de auditoría y conservación documental.
 
@@ -240,6 +254,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad y Finanzas pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas y Gastos pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

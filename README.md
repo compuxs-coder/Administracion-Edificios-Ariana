@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 20 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 23 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -24,10 +24,14 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Generación y previsualización de cargos por período, lotes auditables, idempotencia, snapshots y anulación sin eliminación física.
 - Registro de pagos con aplicación automática por antigüedad, pagos parciales, saldo a favor reutilizable, anulación trazable, recibos inmutables con consecutivo global anual y evidencias privadas PDF/JPG/PNG.
 - Cartera paginada y estados de cuenta reconstruibles con saldo vencido/no vencido, antigüedad, KPIs y movimientos financieros cronológicos.
+- Directorio global de proveedores con perfiles comerciales y estados independientes por edificio.
+- Contratos y gastos con flujo borrador, registro, snapshots inmutables y anulación trazable sin eliminación física.
+- Gastos de contado marcados como pagados y gastos a crédito con una única cuenta por pagar generada transaccionalmente.
+- Cuentas por pagar paginadas con resumen pendiente y vencido; desembolsos y conciliación bancaria permanecen fuera de alcance.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios, acceso, Propiedad y Finanzas dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas y Gastos dentro del esquema PostgreSQL privado.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
 

@@ -24,4 +24,7 @@ enum PermisoEdificio: string
     case PAGOS_ANULAR = 'pagos.anular';
     case COMPROBANTES_VER = 'comprobantes.ver';
     case EVIDENCIAS_GESTIONAR = 'evidencias.gestionar';
+    case GASTOS_VER = 'gastos.ver';
+    case GASTOS_GESTIONAR = 'gastos.gestionar';
+    case GASTOS_ANULAR = 'gastos.anular';
 }

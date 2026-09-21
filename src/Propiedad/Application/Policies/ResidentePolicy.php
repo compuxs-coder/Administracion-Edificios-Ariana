@@ -6,10 +6,14 @@ use Src\Auth\Infrastructure\Models\UserEloquentModel;
 use Src\Edificio\Application\Services\AccesoEdificioService;
 use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Propiedad\Infrastructure\Models\ResidenteEloquentModel;
+use Src\Propiedad\Application\Services\TerceroIdentityAuthorizationService;
 
 final class ResidentePolicy
 {
-    public function __construct(private readonly AccesoEdificioService $access) {}
+    public function __construct(
+        private readonly AccesoEdificioService $access,
+        private readonly TerceroIdentityAuthorizationService $identityAccess,
+    ) {}
 
     public function viewAny(UserEloquentModel $user): bool
     {
@@ -31,7 +35,10 @@ final class ResidentePolicy
 
     public function update(UserEloquentModel $user, ResidenteEloquentModel $residente): bool
     {
-        return $this->canManageGlobally($user, $residente);
+        $tercero = $residente->tercero()->first();
+
+        return $tercero !== null
+            && $this->identityAccess->allows((string) $user->getKey(), $tercero);
     }
 
     public function changeStatus(UserEloquentModel $user, ResidenteEloquentModel $residente): bool

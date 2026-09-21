@@ -79,6 +79,30 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/cartera'),
   hidden: !canAny('finanzas.ver')
 }, {
+  label: 'Proveedores',
+  icon: 'i-lucide-truck',
+  to: '/proveedores',
+  onSelect: () => navigateTo('/proveedores'),
+  hidden: !canAny('gastos.ver')
+}, {
+  label: 'Contratos',
+  icon: 'i-lucide-file-signature',
+  to: '/contratos-proveedor',
+  onSelect: () => navigateTo('/contratos-proveedor'),
+  hidden: !canAny('gastos.ver')
+}, {
+  label: 'Gastos',
+  icon: 'i-lucide-receipt',
+  to: '/gastos',
+  onSelect: () => navigateTo('/gastos'),
+  hidden: !canAny('gastos.ver')
+}, {
+  label: 'Cuentas por pagar',
+  icon: 'i-lucide-landmark',
+  to: '/cuentas-por-pagar',
+  onSelect: () => navigateTo('/cuentas-por-pagar'),
+  hidden: !canAny('gastos.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

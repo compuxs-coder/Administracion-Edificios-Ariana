@@ -5,6 +5,7 @@ namespace Src\Propiedad\Infrastructure\Models;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Src\Gastos\Infrastructure\Models\ProveedorEloquentModel;
 use Src\Propiedad\Domain\Enums\TipoIdentificacion;
 use Src\Propiedad\Domain\Enums\TipoPersona;
 use Src\Propiedad\Infrastructure\Models\Concerns\UsesApplicationSchema;
@@ -41,6 +42,12 @@ final class TerceroEloquentModel extends Model
     public function residente(): HasOne
     {
         return $this->hasOne(ResidenteEloquentModel::class, 'tercero_id');
+    }
+
+    /** @return HasOne<ProveedorEloquentModel, $this> */
+    public function proveedor(): HasOne
+    {
+        return $this->hasOne(ProveedorEloquentModel::class, 'tercero_id');
     }
 
     protected function casts(): array

@@ -14,7 +14,7 @@ const formatDate = (date: string) => new Intl.DateTimeFormat('es', { dateStyle: 
     <template #header>
       <UDashboardNavbar :title="propietario.nombre">
         <template #leading><UDashboardSidebarCollapse /></template>
-        <template #right><UButton v-if="propietario.puedeGestionar" color="neutral" icon="i-lucide-pencil" label="Editar" variant="outline" @click="router.visit(route('propietarios.edit', propietario.id))" /></template>
+        <template #right><UButton v-if="propietario.puedeEditarIdentidad" color="neutral" icon="i-lucide-pencil" label="Editar" variant="outline" @click="router.visit(route('propietarios.edit', propietario.id))" /></template>
       </UDashboardNavbar>
     </template>
     <template #body>
