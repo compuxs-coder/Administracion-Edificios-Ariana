@@ -163,8 +163,12 @@ final class EloquentGastoRepository implements GastoRepositoryInterface
                 ->where('gasto_id', $expense->id)
                 ->lockForUpdate()
                 ->first();
-            if ($expense->tipo_pago === TipoPagoGasto::CREDITO && ($account === null || $account->estado !== EstadoCuentaPorPagar::PENDIENTE)) {
-                throw ValidationException::withMessages(['estado' => 'La cuenta por pagar pendiente del gasto no está disponible.']);
+            if ($expense->tipo_pago === TipoPagoGasto::CREDITO && (
+                $account === null
+                || $account->estado !== EstadoCuentaPorPagar::PENDIENTE
+                || bccomp($account->saldo, $account->monto_original, 4) !== 0
+            )) {
+                throw ValidationException::withMessages(['estado' => 'Anule primero los desembolsos activos antes de anular el gasto.']);
             }
             if ($expense->tipo_pago === TipoPagoGasto::CONTADO && $account !== null) {
                 throw ValidationException::withMessages(['estado' => 'Un gasto de contado no puede tener cuenta por pagar.']);
@@ -335,7 +339,7 @@ final class EloquentGastoRepository implements GastoRepositoryInterface
             'referencia' => $expense->referencia,
             'monto' => $expense->monto,
             'tipoPago' => $expense->tipo_pago->value,
-            'estadoPago' => $expense->estado_pago?->value,
+            'estadoPago' => $this->paymentState($expense),
             'pagadoAt' => $expense->pagado_at?->toIso8601String(),
             'observaciones' => $expense->observaciones,
             'estado' => $expense->estado->value,
@@ -355,5 +359,24 @@ final class EloquentGastoRepository implements GastoRepositoryInterface
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function paymentState(GastoEloquentModel $expense): ?string
+    {
+        if ($expense->estado === EstadoGasto::BORRADOR) {
+            return null;
+        }
+        if ($expense->estado === EstadoGasto::ANULADO) {
+            return EstadoPagoGasto::ANULADO->value;
+        }
+        if ($expense->tipo_pago === TipoPagoGasto::CONTADO || $expense->estado_pago === EstadoPagoGasto::PAGADO) {
+            return EstadoPagoGasto::PAGADO->value;
+        }
+        $account = $expense->cuentaPorPagar;
+        if ($account !== null && bccomp($account->saldo, $account->monto_original, 4) < 0) {
+            return 'parcial';
+        }
+
+        return EstadoPagoGasto::PENDIENTE->value;
     }
 }

@@ -789,7 +789,7 @@ export interface ContratoProveedorOption {
 
 export type EstadoGasto = 'borrador' | 'registrado' | 'anulado'
 export type TipoPagoGasto = 'contado' | 'credito'
-export type EstadoPagoGasto = 'pendiente' | 'pagado' | 'anulado'
+export type EstadoPagoGasto = 'pendiente' | 'parcial' | 'pagado' | 'anulado'
 
 export interface Gasto {
   id: string
@@ -840,7 +840,7 @@ export interface GastoFormData {
   observaciones: string
 }
 
-export type EstadoCuentaPorPagar = 'pendiente' | 'anulada'
+export type EstadoCuentaPorPagar = 'pendiente' | 'parcial' | 'pagada' | 'anulada'
 
 export interface CuentaPorPagar {
   id: string
@@ -863,4 +863,59 @@ export interface CuentasPorPagarResumen {
   totalVencido: string
   porVencer: string
   cantidadPendiente: number
+}
+
+export type FormaDesembolso = 'efectivo' | 'transferencia' | 'deposito' | 'tarjeta' | 'cheque' | 'otro'
+export type EstadoDesembolso = 'registrado' | 'anulado'
+
+export interface AplicacionDesembolso {
+  id: string
+  cuentaId: string
+  gastoId: string
+  numeroGasto: string
+  concepto: string
+  fechaVencimiento: string
+  montoAplicado: string
+  createdAt: string | null
+}
+
+export interface Desembolso {
+  id: string
+  edificioId: string
+  edificio: string
+  proveedorId: string
+  proveedor: string
+  proveedorIdentificacion: string
+  numero: string
+  fechaDesembolso: string
+  monto: string
+  formaPago: FormaDesembolso
+  referencia: string | null
+  observacion: string | null
+  estado: EstadoDesembolso
+  registradoPor: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  cantidadCuentas: number
+  createdAt: string | null
+  aplicaciones?: AplicacionDesembolso[]
+}
+
+export interface DesembolsoPreview {
+  proveedor: { id: string, nombre: string, identificacion: string }
+  saldoPendiente: string
+  monto: string
+  montoAplicado: string
+  saldoPosterior: string
+  aplicacionFingerprint: string
+  cuentas: Array<{
+    cuentaId: string
+    gastoId: string
+    numeroGasto: string
+    concepto: string
+    fechaVencimiento: string
+    saldoAnterior: string
+    montoAplicado: string
+    saldoPosterior: string
+  }>
 }

@@ -103,6 +103,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/cuentas-por-pagar'),
   hidden: !canAny('gastos.ver')
 }, {
+  label: 'Desembolsos',
+  icon: 'i-lucide-banknote-arrow-down',
+  to: '/desembolsos',
+  onSelect: () => navigateTo('/desembolsos'),
+  hidden: !canAny('desembolsos.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Src\Gastos\Application\Controllers\ContratoProveedorWebController;
 use Src\Gastos\Application\Controllers\CuentaPorPagarWebController;
+use Src\Gastos\Application\Controllers\DesembolsoWebController;
 use Src\Gastos\Application\Controllers\GastoWebController;
 use Src\Gastos\Application\Controllers\ProveedorWebController;
 
@@ -35,4 +36,10 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('cuentas-por-pagar', [CuentaPorPagarWebController::class, 'index'])->name('cuentas-por-pagar.index');
     Route::get('edificios/{edificio}/cuentas-por-pagar/{cuenta}', [CuentaPorPagarWebController::class, 'show'])->whereUuid('edificio')->whereUuid('cuenta')->name('cuentas-por-pagar.show');
+
+    Route::get('desembolsos', [DesembolsoWebController::class, 'index'])->name('desembolsos.index');
+    Route::get('desembolsos/create', [DesembolsoWebController::class, 'create'])->name('desembolsos.create');
+    Route::post('edificios/{edificio}/desembolsos', [DesembolsoWebController::class, 'store'])->whereUuid('edificio')->name('desembolsos.store');
+    Route::get('edificios/{edificio}/desembolsos/{desembolso}', [DesembolsoWebController::class, 'show'])->whereUuid('edificio')->whereUuid('desembolso')->name('desembolsos.show');
+    Route::patch('edificios/{edificio}/desembolsos/{desembolso}/anular', [DesembolsoWebController::class, 'cancel'])->whereUuid('edificio')->whereUuid('desembolso')->name('desembolsos.cancel');
 });

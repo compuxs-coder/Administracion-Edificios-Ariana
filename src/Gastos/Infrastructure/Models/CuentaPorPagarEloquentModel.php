@@ -5,6 +5,7 @@ namespace Src\Gastos\Infrastructure\Models;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Gastos\Domain\Enums\EstadoCuentaPorPagar;
 use Src\Gastos\Infrastructure\Models\Concerns\UsesApplicationSchema;
 
@@ -34,6 +35,12 @@ final class CuentaPorPagarEloquentModel extends Model
     public function proveedor(): BelongsTo
     {
         return $this->belongsTo(ProveedorEloquentModel::class, 'proveedor_id');
+    }
+
+    /** @return HasMany<AplicacionDesembolsoEloquentModel, $this> */
+    public function aplicacionesDesembolso(): HasMany
+    {
+        return $this->hasMany(AplicacionDesembolsoEloquentModel::class, 'cuenta_por_pagar_id');
     }
 
     protected function casts(): array

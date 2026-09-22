@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar y el contexto de proveedores, contratos, gastos y cuentas por pagar son módulos funcionales. Operaciones, desembolsos y conciliación bancaria todavía no están implementados.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar y el contexto de proveedores, contratos, gastos, cuentas por pagar y desembolsos son módulos funcionales. Operaciones y conciliación bancaria todavía no están implementados.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -56,10 +56,10 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 23 permisos y administración de miembros |
+| `administrador` | Los 26 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
-| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores y gastos |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos y cuentas por pagar |
+| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos y desembolsos |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar y desembolsos |
 
 Permisos:
 
@@ -73,6 +73,7 @@ cargos.generar                  cargos.crear                     cargos.anular
 pagos.registrar                 pagos.aplicar_saldo              pagos.anular
 comprobantes.ver                evidencias.gestionar
 gastos.ver                      gastos.gestionar                 gastos.anular
+desembolsos.ver                 desembolsos.registrar            desembolsos.anular
 ```
 
 Reglas de seguridad:
@@ -116,7 +117,7 @@ Durante la transición:
 - Propietarios, su alcance por edificio y el historial de titularidades residen en `administracion_edificios`.
 - Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
 - Conceptos de cobro, tarifas, lecturas de consumo, cargos y sus alcances por departamento residen en `administracion_edificios`.
-- Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar y consecutivos de gasto residen en `administracion_edificios`.
+- Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar, desembolsos, sus aplicaciones y consecutivos residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -350,7 +351,7 @@ El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crea
 
 ## Módulo Gastos
 
-El contexto `src/Gastos` implementa el directorio de proveedores, contratos, gastos y la consulta de cuentas por pagar. No registra pagos salientes, transferencias ni conciliación bancaria.
+El contexto `src/Gastos` implementa el directorio de proveedores, contratos, gastos, cuentas por pagar y desembolsos a proveedores. No administra cuentas bancarias, anticipos, adjuntos ni conciliación bancaria.
 
 Tablas:
 
@@ -360,6 +361,9 @@ Tablas:
 - `gastos`: documento, monto `numeric(14,4)`, condición de pago, snapshots, consecutivo y trazabilidad.
 - `cuentas_por_pagar`: obligación de consulta creada exclusivamente por gastos a crédito registrados.
 - `consecutivos_gasto`: contador global anual bloqueado para números `GAS-AAAA-NNNNNN`.
+- `desembolsos`: pago saliente registrado o anulado, con forma, referencia, actor y snapshot del proveedor.
+- `aplicaciones_desembolso`: distribución inmutable del desembolso entre cuentas por pagar del mismo edificio y proveedor.
+- `consecutivos_desembolso`: contador global anual bloqueado para números `DES-AAAA-NNNNNN`.
 
 Reglas de negocio:
 
@@ -371,6 +375,16 @@ Reglas de negocio:
 - Listados, opciones y resúmenes se filtran por edificios donde el usuario posee `gastos.ver`; las mutaciones revalidan `gastos.gestionar` o `gastos.anular` sobre el edificio exacto.
 - Las FKs compuestas y guards de base impiden cruces de edificio, eliminación, transiciones inválidas y mutación histórica.
 - Modificar una identidad usada por Propiedad y Gastos requiere administrar todos sus edificios vinculados en ambos contextos.
+- Un desembolso se aplica por fecha de vencimiento, creación e identificador a las cuentas abiertas de un único proveedor. Una cuenta admite múltiples desembolsos y un desembolso puede cubrir varias cuentas.
+- Los pagos parciales reducen saldo sin reescribir monto original. Los estados visibles `pendiente`, `parcial` y `pagada` se derivan; `anulada` conserva el ciclo documental del gasto.
+- Todo el monto debe aplicarse. Se rechazan sobrepagos y no se genera saldo a favor o anticipo del proveedor.
+- La previsualización devuelve un fingerprint del plan. Al registrar se bloquean edificio, proveedor, cuentas y gastos; un cambio concurrente invalida ese fingerprint y no consume consecutivo.
+- El desembolso usa un estado técnico `preparando` sólo dentro de la transacción y se publica como `registrado` después de aplicar el monto completo.
+- Anular no elimina aplicaciones: restaura saldos, revierte `pagado_at` cuando corresponde y conserva usuario, fecha y motivo. No puede repetirse.
+- Un gasto a crédito sólo puede anularse después de anular todos sus desembolsos activos. Los gastos de contado siguen sin generar desembolso.
+- `desembolsos.ver`, `desembolsos.registrar` y `desembolsos.anular` están separados de los permisos de creación y anulación del gasto.
+- Administrador y gestor financiero reciben los tres permisos; consulta sólo `desembolsos.ver`; gestor de propiedad ninguno.
+- FKs compuestas entre edificio, proveedor, desembolso y cuenta, más triggers diferidos PostgreSQL, protegen aislamiento, exactitud de aplicaciones, saldos e inmutabilidad.
 
 Rutas principales:
 
@@ -400,9 +414,14 @@ PATCH  /edificios/{edificio}/gastos/{gasto}/registrar
 PATCH  /edificios/{edificio}/gastos/{gasto}/anular
 GET    /cuentas-por-pagar
 GET    /edificios/{edificio}/cuentas-por-pagar/{cuenta}
+GET    /desembolsos
+GET    /desembolsos/create
+POST   /edificios/{edificio}/desembolsos
+GET    /edificios/{edificio}/desembolsos/{desembolso}
+PATCH  /edificios/{edificio}/desembolsos/{desembolso}/anular
 ```
 
-No existen rutas destructivas para proveedores, asociaciones, contratos, gastos ni cuentas por pagar.
+No existen rutas destructivas para proveedores, asociaciones, contratos, gastos, cuentas por pagar, desembolsos ni aplicaciones.
 
 ## Módulos transitorios
 

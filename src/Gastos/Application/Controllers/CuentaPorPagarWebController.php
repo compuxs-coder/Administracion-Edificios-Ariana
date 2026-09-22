@@ -13,7 +13,6 @@ use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Gastos\Application\Actions\GetCuentaPorPagarAction;
 use Src\Gastos\Application\Actions\GetGastosOptionsAction;
 use Src\Gastos\Application\Actions\ListCuentasPorPagarAction;
-use Src\Gastos\Domain\Enums\EstadoCuentaPorPagar;
 
 final class CuentaPorPagarWebController extends Controller
 {
@@ -31,7 +30,7 @@ final class CuentaPorPagarWebController extends Controller
         $filters = $request->validate([
             'edificio_id' => ['nullable', 'uuid'],
             'proveedor_id' => ['nullable', 'uuid'],
-            'estado' => ['nullable', Rule::enum(EstadoCuentaPorPagar::class)],
+            'estado' => ['nullable', Rule::in(['pendiente', 'parcial', 'pagada', 'anulada'])],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 

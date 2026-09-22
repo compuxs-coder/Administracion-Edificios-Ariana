@@ -35,10 +35,12 @@ use Src\Finanzas\Infrastructure\Repositories\EloquentReciboPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
 use Src\Gastos\Domain\Contracts\ContratoProveedorRepositoryInterface;
 use Src\Gastos\Domain\Contracts\CuentaPorPagarRepositoryInterface;
+use Src\Gastos\Domain\Contracts\DesembolsoRepositoryInterface;
 use Src\Gastos\Domain\Contracts\GastoRepositoryInterface;
 use Src\Gastos\Domain\Contracts\ProveedorRepositoryInterface;
 use Src\Gastos\Infrastructure\Repositories\EloquentContratoProveedorRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentCuentaPorPagarRepository;
+use Src\Gastos\Infrastructure\Repositories\EloquentDesembolsoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
@@ -93,6 +95,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(ContratoProveedorRepositoryInterface::class, EloquentContratoProveedorRepository::class);
         $this->app->bind(GastoRepositoryInterface::class, EloquentGastoRepository::class);
         $this->app->bind(CuentaPorPagarRepositoryInterface::class, EloquentCuentaPorPagarRepository::class);
+        $this->app->bind(DesembolsoRepositoryInterface::class, EloquentDesembolsoRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar y `Gastos` administra proveedores, contratos, gastos y cuentas por pagar. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar y `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -29,8 +29,8 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
-3. Los 23 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas y gastos. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores y gastos; `consulta` sólo dispone de lectura, incluido `gastos.ver`.
+3. Los 26 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos y desembolsos. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos y desembolsos; `consulta` sólo dispone de lectura, incluidos `gastos.ver` y `desembolsos.ver`.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -173,9 +173,9 @@ ETAPA 6 convierte configuraciones vigentes en cargos de departamento. ETAPA 12 c
 - Los KPIs se calculan antes de paginar. Morosidad es departamentos con saldo vencido dividido por departamentos incluidos en el filtro.
 - El estado de cuenta es cronológico y contable: cargo es débito, pago es crédito y cada anulación revierte su documento. Las aplicaciones se muestran como trazabilidad del pago y no se suman otra vez.
 
-## Gastos y proveedores
+## Gastos, proveedores y desembolsos
 
-ETAPA 13 incorpora el contexto `Gastos` para administrar egresos comprometidos sin modelar todavía desembolsos ni conciliación bancaria:
+ETAPA 13 incorpora el contexto `Gastos` para administrar egresos comprometidos:
 
 - `proveedores` enlaza un único perfil global con `terceros`; `proveedor_edificio` conserva estado y condiciones comerciales independientes por edificio.
 - `contratos_proveedor` y `gastos` usan el ciclo `borrador -> registrado -> anulado`. Sólo el borrador es editable y ninguna entidad dispone de eliminación física.
@@ -188,6 +188,19 @@ ETAPA 13 incorpora el contexto `Gastos` para administrar egresos comprometidos s
 - La edición de una identidad global compartida exige permisos de gestión sobre todos los edificios vinculados por perfiles de propietario, residente y proveedor.
 - PostgreSQL protege importes, fechas, transiciones, snapshots, inmutabilidad y correspondencia diferida entre gasto y cuenta por pagar. SQLite conserva guards equivalentes para la suite donde la comprobación diferida no es viable.
 
+ETAPA 14 completa el pago de obligaciones mediante desembolsos sin incorporar conciliación bancaria:
+
+- Un desembolso pertenece a un edificio y un proveedor, se registra inmediatamente y recibe el consecutivo global anual `DES-AAAA-NNNNNN`.
+- El monto se distribuye automáticamente entre las cuentas abiertas del proveedor por vencimiento, creación e identificador. Admite liquidaciones parciales y múltiples cuentas, pero se rechazan sobrepagos y anticipos.
+- La previsualización congela un fingerprint del plan. La transacción vuelve a bloquear y calcular las cuentas; si cambió el orden o algún saldo, exige previsualizar otra vez.
+- `aplicaciones_desembolso` es historial inmutable. El saldo de la cuenta y el estado de pago del gasto corresponden a la suma de aplicaciones cuyos desembolsos siguen registrados.
+- Pendiente, parcial y pagada son lecturas derivadas de saldo y monto original. La columna histórica de la cuenta conserva únicamente vigencia `pendiente` o `anulada`.
+- Anular un desembolso conserva todas sus aplicaciones, restaura los saldos una sola vez y recalcula cada gasto. Un gasto no puede anularse mientras conserve desembolsos activos.
+- Los gastos de contado mantienen el comportamiento de ETAPA 13: quedan pagados al registrarse y no generan desembolso.
+- Los permisos son `desembolsos.ver`, `desembolsos.registrar` y `desembolsos.anular`. Administrador y gestor financiero reciben los tres; consulta sólo lectura; gestor de propiedad ninguno.
+- Las FKs compuestas incluyen edificio y proveedor; repositorios, requests y filtros revalidan el permiso y edificio exactos. PostgreSQL comprueba de forma diferida monto aplicado, saldos y correspondencia con el gasto.
+- ETAPA 14 conserva forma de pago, referencia, actor, proveedor snapshot y anulación. Anticipos, cuentas bancarias, adjuntos, flujo de aprobación y conciliación permanecen fuera de alcance.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -195,7 +208,7 @@ ETAPA 13 incorpora el contexto `Gastos` para administrar egresos comprometidos s
 | Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
 | Identidad y acceso | Usuarios, roles múltiples, permisos, invitaciones y auditoría por edificio implementados |
 | Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
-| Gastos y proveedores | Proveedores, contratos, gastos y cuentas por pagar implementados; desembolsos y conciliación fuera de alcance |
+| Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados; conciliación bancaria fuera de alcance |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
 | Comunicación | Comunicados, documentos y notificaciones |

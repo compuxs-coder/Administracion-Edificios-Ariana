@@ -27,4 +27,7 @@ enum PermisoEdificio: string
     case GASTOS_VER = 'gastos.ver';
     case GASTOS_GESTIONAR = 'gastos.gestionar';
     case GASTOS_ANULAR = 'gastos.anular';
+    case DESEMBOLSOS_VER = 'desembolsos.ver';
+    case DESEMBOLSOS_REGISTRAR = 'desembolsos.registrar';
+    case DESEMBOLSOS_ANULAR = 'desembolsos.anular';
 }
