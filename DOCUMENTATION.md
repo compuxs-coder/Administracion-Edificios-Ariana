@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar y el contexto de proveedores, contratos, gastos, cuentas por pagar y desembolsos son módulos funcionales. Operaciones y conciliación bancaria todavía no están implementados.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos y conciliación de egresos en Tesorería son módulos funcionales. Operaciones todavía no está implementado.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -56,10 +56,10 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 26 permisos y administración de miembros |
+| `administrador` | Los 31 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
-| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos y desembolsos |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar y desembolsos |
+| `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos y tesorería |
 
 Permisos:
 
@@ -74,6 +74,8 @@ pagos.registrar                 pagos.aplicar_saldo              pagos.anular
 comprobantes.ver                evidencias.gestionar
 gastos.ver                      gastos.gestionar                 gastos.anular
 desembolsos.ver                 desembolsos.registrar            desembolsos.anular
+tesoreria.ver                  cuentas_tesoreria.gestionar       movimientos_tesoreria.registrar
+movimientos_tesoreria.anular   conciliaciones.gestionar
 ```
 
 Reglas de seguridad:
@@ -118,6 +120,7 @@ Durante la transición:
 - Terceros, residentes, su alcance por edificio y el historial de ocupaciones residen en `administracion_edificios`.
 - Conceptos de cobro, tarifas, lecturas de consumo, cargos y sus alcances por departamento residen en `administracion_edificios`.
 - Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar, desembolsos, sus aplicaciones y consecutivos residen en `administracion_edificios`.
+- Cuentas de tesorería, movimientos y conciliaciones de desembolsos residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -257,7 +260,7 @@ No existen rutas de eliminación para propietarios, titularidades, residentes u 
 
 ## Módulo Finanzas
 
-El contexto `src/Finanzas` configura conceptos, tarifas, cargos, pagos, cartera, recibos y evidencias por edificio. La conciliación bancaria permanece fuera de alcance.
+El contexto `src/Finanzas` configura conceptos, tarifas, cargos, pagos, cartera, recibos y evidencias por edificio. `Tesoreria` mantiene separadas las cuentas y conciliaciones para no mezclar cuentas por cobrar con egresos.
 
 Tablas:
 
@@ -351,7 +354,7 @@ El comando `php artisan finanzas:generar-cargos --dry-run` previsualiza sin crea
 
 ## Módulo Gastos
 
-El contexto `src/Gastos` implementa el directorio de proveedores, contratos, gastos, cuentas por pagar y desembolsos a proveedores. No administra cuentas bancarias, anticipos, adjuntos ni conciliación bancaria.
+El contexto `src/Gastos` implementa el directorio de proveedores, contratos, gastos, cuentas por pagar y desembolsos a proveedores. No administra cuentas bancarias, anticipos ni adjuntos; `Tesoreria` referencia sus desembolsos sin modificar sus aplicaciones.
 
 Tablas:
 
@@ -422,6 +425,53 @@ PATCH  /edificios/{edificio}/desembolsos/{desembolso}/anular
 ```
 
 No existen rutas destructivas para proveedores, asociaciones, contratos, gastos, cuentas por pagar, desembolsos ni aplicaciones.
+
+## Módulo Tesorería
+
+ETAPA 15 implementa `src/Tesoreria` para cuentas bancarias o cajas por edificio, movimientos manuales y conciliación individual de egresos con desembolsos existentes.
+
+Tablas:
+
+- `cuentas_tesoreria`: cuenta bancaria o caja, código local, identificación bancaria condicional y estado administrativo.
+- `movimientos_tesoreria`: ingreso o egreso manual, monto `numeric(14,4)`, fecha, referencia, descripción y trazabilidad de registro/anulación.
+- `conciliaciones_tesoreria`: episodios históricos de conciliación vigente o revertida entre un movimiento y un desembolso.
+
+Reglas de negocio:
+
+- Todas las filas pertenecen a un edificio. FKs compuestas impiden relacionar cuentas, movimientos, conciliaciones o desembolsos de edificios diferentes.
+- La cuenta bancaria exige entidad, tipo y número; la caja no acepta esos campos. Código y cuenta bancaria son únicos dentro del edificio.
+- Una cuenta inactiva conserva historial y puede reactivarse, pero no admite movimientos nuevos. Después del primer movimiento no cambian su tipo ni identificación bancaria.
+- Los movimientos nacen `registrado`, almacenan siempre un monto positivo y distinguen `ingreso` o `egreso`. Sus datos financieros son inmutables y la anulación exige usuario, fecha y motivo.
+- Los movimientos se capturan manualmente y no se generan a partir de desembolsos. Los documentos anteriores a ETAPA 15 no reciben backfill ni asociación inferida.
+- La conciliación es uno-a-uno y por monto exacto. Sólo relaciona un egreso registrado con un desembolso registrado del mismo edificio; caja exige forma `efectivo` y banco exige una forma diferente.
+- Sólo puede existir una conciliación vigente por movimiento y por desembolso. Revertir conserva la fila y permite crear un episodio posterior.
+- El estado efectivo del movimiento se deriva como `pendiente`, `conciliado`, `no_aplica` o `anulado` y no se persiste por duplicado.
+- Un movimiento o desembolso conciliado no puede anularse hasta revertir expresamente su conciliación.
+- El saldo registrado de una cuenta es la suma de ingresos menos egresos registrados. No representa un saldo bancario certificado porque la etapa no incluye apertura ni extractos.
+- Los cinco permisos de Tesorería se asignan completos a administrador y gestor financiero; consulta recibe sólo `tesoreria.ver`; gestor de propiedad no recibe ninguno.
+- Permanecen fuera de alcance: pagos entrantes, gastos de contado, importación de archivos, APIs bancarias, extractos, cierres, conciliación parcial o agrupada, transferencias internas, arqueos, saldos iniciales, multimoneda, comisiones, tolerancias, adjuntos, aprobaciones y contabilidad general.
+
+Rutas principales:
+
+```text
+GET    /cuentas-tesoreria
+GET    /cuentas-tesoreria/create
+POST   /edificios/{edificio}/cuentas-tesoreria
+GET    /edificios/{edificio}/cuentas-tesoreria/{cuenta}
+GET    /edificios/{edificio}/cuentas-tesoreria/{cuenta}/edit
+PUT    /edificios/{edificio}/cuentas-tesoreria/{cuenta}
+PATCH  /edificios/{edificio}/cuentas-tesoreria/{cuenta}/estado
+GET    /movimientos-tesoreria
+GET    /movimientos-tesoreria/create
+POST   /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos
+GET    /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}
+PATCH  /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}/anular
+GET    /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}/conciliar
+POST   /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}/conciliaciones
+PATCH  /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}/conciliaciones/{conciliacion}/revertir
+```
+
+No existen rutas de eliminación para cuentas, movimientos o conciliaciones.
 
 ## Módulos transitorios
 

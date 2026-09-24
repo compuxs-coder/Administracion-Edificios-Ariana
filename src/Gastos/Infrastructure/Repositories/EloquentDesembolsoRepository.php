@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
 use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Gastos\Domain\Contracts\ConciliacionDesembolsoQueryInterface;
 use Src\Gastos\Domain\Contracts\DesembolsoRepositoryInterface;
 use Src\Gastos\Domain\Enums\EstadoCuentaPorPagar;
 use Src\Gastos\Domain\Enums\EstadoDesembolso;
@@ -25,7 +26,10 @@ use Src\Propiedad\Domain\Enums\TipoPersona;
 
 final class EloquentDesembolsoRepository implements DesembolsoRepositoryInterface
 {
-    public function __construct(private readonly AccesoEdificioRepositoryInterface $access) {}
+    public function __construct(
+        private readonly AccesoEdificioRepositoryInterface $access,
+        private readonly ConciliacionDesembolsoQueryInterface $reconciliations,
+    ) {}
 
     public function paginateForUser(string $userId, array $filters): array
     {
@@ -208,6 +212,11 @@ final class EloquentDesembolsoRepository implements DesembolsoRepositoryInterfac
                 ->findOrFail($desembolsoId);
             if ($payment->estado !== EstadoDesembolso::REGISTRADO) {
                 throw ValidationException::withMessages(['estado' => 'El desembolso ya fue anulado.']);
+            }
+            if ($this->reconciliations->hasActiveReconciliation($edificioId, $payment->id, true)) {
+                throw ValidationException::withMessages([
+                    'conciliacion' => 'Revierta la conciliación vigente antes de anular el desembolso.',
+                ]);
             }
             $applications = AplicacionDesembolsoEloquentModel::query()
                 ->where('desembolso_id', $payment->id)

@@ -30,4 +30,9 @@ enum PermisoEdificio: string
     case DESEMBOLSOS_VER = 'desembolsos.ver';
     case DESEMBOLSOS_REGISTRAR = 'desembolsos.registrar';
     case DESEMBOLSOS_ANULAR = 'desembolsos.anular';
+    case TESORERIA_VER = 'tesoreria.ver';
+    case CUENTAS_TESORERIA_GESTIONAR = 'cuentas_tesoreria.gestionar';
+    case MOVIMIENTOS_TESORERIA_REGISTRAR = 'movimientos_tesoreria.registrar';
+    case MOVIMIENTOS_TESORERIA_ANULAR = 'movimientos_tesoreria.anular';
+    case CONCILIACIONES_GESTIONAR = 'conciliaciones.gestionar';
 }

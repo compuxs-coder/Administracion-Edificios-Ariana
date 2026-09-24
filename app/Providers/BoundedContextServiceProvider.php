@@ -34,6 +34,7 @@ use Src\Finanzas\Infrastructure\Repositories\EloquentPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentReciboPagoRepository;
 use Src\Finanzas\Infrastructure\Repositories\EloquentTarifaConceptoRepository;
 use Src\Gastos\Domain\Contracts\ContratoProveedorRepositoryInterface;
+use Src\Gastos\Domain\Contracts\ConciliacionDesembolsoQueryInterface;
 use Src\Gastos\Domain\Contracts\CuentaPorPagarRepositoryInterface;
 use Src\Gastos\Domain\Contracts\DesembolsoRepositoryInterface;
 use Src\Gastos\Domain\Contracts\GastoRepositoryInterface;
@@ -55,6 +56,11 @@ use Src\Propiedad\Infrastructure\Repositories\EloquentOcupacionRepository;
 use Src\Propiedad\Infrastructure\Repositories\EloquentPropietarioRepository;
 use Src\Propiedad\Infrastructure\Repositories\EloquentResidenteRepository;
 use Src\Propiedad\Infrastructure\Repositories\EloquentTitularidadRepository;
+use Src\Tesoreria\Domain\Contracts\CuentaTesoreriaRepositoryInterface;
+use Src\Tesoreria\Domain\Contracts\MovimientoTesoreriaRepositoryInterface;
+use Src\Tesoreria\Infrastructure\Repositories\EloquentConciliacionDesembolsoQuery;
+use Src\Tesoreria\Infrastructure\Repositories\EloquentCuentaTesoreriaRepository;
+use Src\Tesoreria\Infrastructure\Repositories\EloquentMovimientoTesoreriaRepository;
 
 class BoundedContextServiceProvider extends ServiceProvider
 {
@@ -64,6 +70,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Propiedad',
         'Finanzas',
         'Gastos',
+        'Tesoreria',
         'Cliente',
         'Categoria',
         'Producto',
@@ -96,6 +103,9 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(GastoRepositoryInterface::class, EloquentGastoRepository::class);
         $this->app->bind(CuentaPorPagarRepositoryInterface::class, EloquentCuentaPorPagarRepository::class);
         $this->app->bind(DesembolsoRepositoryInterface::class, EloquentDesembolsoRepository::class);
+        $this->app->bind(CuentaTesoreriaRepositoryInterface::class, EloquentCuentaTesoreriaRepository::class);
+        $this->app->bind(MovimientoTesoreriaRepositoryInterface::class, EloquentMovimientoTesoreriaRepository::class);
+        $this->app->bind(ConciliacionDesembolsoQueryInterface::class, EloquentConciliacionDesembolsoQuery::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

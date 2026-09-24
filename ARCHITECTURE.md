@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar y `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, y `Tesoreria` registra cuentas, movimientos y conciliaciones. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -29,8 +29,8 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
-3. Los 26 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos y desembolsos. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos y desembolsos; `consulta` sólo dispone de lectura, incluidos `gastos.ver` y `desembolsos.ver`.
+3. Los 31 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos y tesorería. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `consulta` sólo dispone de lectura, incluidos `gastos.ver`, `desembolsos.ver` y `tesoreria.ver`.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -104,7 +104,7 @@ ETAPA 10 incorpora residentes dentro de `Propiedad`, porque identidad, titularid
 
 ## Finanzas: conceptos y tarifas
 
-El contexto `Finanzas` configura conceptos y tarifas, genera cargos, registra pagos y emite recibos; la conciliación bancaria permanece fuera de alcance.
+El contexto `Finanzas` configura conceptos y tarifas, genera cargos, registra pagos y emite recibos. La tesorería se mantiene separada para no convertir las cuentas por cobrar en propietarias de cuentas bancarias y egresos.
 
 1. `conceptos_cobro` es un catálogo local al edificio y define tipo, periodicidad, forma de cálculo y estado administrativo.
 2. `tarifas_concepto` guarda valores monetarios, porcentajes y demás parámetros por intervalo temporal; una tarifa no se sobrescribe ni se elimina.
@@ -201,6 +201,21 @@ ETAPA 14 completa el pago de obligaciones mediante desembolsos sin incorporar co
 - Las FKs compuestas incluyen edificio y proveedor; repositorios, requests y filtros revalidan el permiso y edificio exactos. PostgreSQL comprueba de forma diferida monto aplicado, saldos y correspondencia con el gasto.
 - ETAPA 14 conserva forma de pago, referencia, actor, proveedor snapshot y anulación. Anticipos, cuentas bancarias, adjuntos, flujo de aprobación y conciliación permanecen fuera de alcance.
 
+## Tesorería y conciliación bancaria
+
+ETAPA 15 incorpora el contexto `Tesoreria` como continuación de los desembolsos de ETAPA 14:
+
+- Una cuenta de tesorería pertenece a un único edificio y puede ser `bancaria` o `caja`. Su código es único dentro del edificio y la inactivación reemplaza la eliminación física.
+- Los movimientos se registran manualmente como `ingreso` o `egreso`, con monto positivo, fecha, referencia, descripción y actor. Son hechos independientes del desembolso y no se generan ni se reconstruyen automáticamente.
+- Sólo un egreso `registrado` puede conciliarse en esta etapa. La relación es uno-a-uno, exige monto exacto y un desembolso `registrado` del mismo edificio. Una caja sólo admite desembolsos en efectivo y una cuenta bancaria admite formas no efectivas.
+- La conciliación nace `vigente` y sólo puede pasar a `revertida` con usuario, fecha y motivo. Cada nueva conciliación crea una fila histórica; ninguna relación anterior se reactiva o elimina.
+- `pendiente`, `conciliado`, `no_aplica` y `anulado` son estados efectivos derivados del movimiento y su conciliación vigente. No se duplica ese estado en el movimiento.
+- Un movimiento o desembolso con conciliación vigente no puede anularse. Primero debe revertirse explícitamente la conciliación para preservar la discrepancia y su trazabilidad.
+- Los saldos mostrados son el neto derivado de movimientos registrados. ETAPA 15 no afirma que ese valor sea el saldo bancario real porque no incorpora saldos iniciales ni extractos completos.
+- Las FKs compuestas incluyen `edificio_id`; repositorios, requests, rutas anidadas y guards de base impiden cruces entre cuenta, movimiento, conciliación y desembolso.
+- Los permisos son `tesoreria.ver`, `cuentas_tesoreria.gestionar`, `movimientos_tesoreria.registrar`, `movimientos_tesoreria.anular` y `conciliaciones.gestionar`. Administrador y gestor financiero reciben los cinco; consulta sólo lectura; gestor de propiedad ninguno.
+- Quedan fuera la importación CSV/OFX/CAMT, APIs bancarias, extractos y cierres de período, conciliación de pagos entrantes o gastos de contado, relaciones parciales o muchos-a-muchos, transferencias entre cuentas, arqueos de caja, saldos iniciales, multimoneda, comisiones, tolerancias, adjuntos, aprobaciones y contabilidad de partida doble.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -208,7 +223,8 @@ ETAPA 14 completa el pago de obligaciones mediante desembolsos sin incorporar co
 | Propiedad y ocupación | Edificios, estructura física, alícuotas, identidades compartidas, propietarios, residentes e historial de ocupación implementados |
 | Identidad y acceso | Usuarios, roles múltiples, permisos, invitaciones y auditoría por edificio implementados |
 | Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
-| Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados; conciliación bancaria fuera de alcance |
+| Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados |
+| Tesorería | Cuentas bancarias y cajas, movimientos manuales y conciliación de desembolsos implementados; extractos, importación y conciliación de ingresos fuera de alcance |
 | Operaciones | Mantenimiento, incidencias y solicitudes |
 | Áreas comunes | Espacios, reglas y reservas |
 | Comunicación | Comunicados, documentos y notificaciones |

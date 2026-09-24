@@ -919,3 +919,105 @@ export interface DesembolsoPreview {
     saldoPosterior: string
   }>
 }
+
+export type TipoCuentaTesoreria = 'bancaria' | 'caja'
+export type EstadoCuentaTesoreria = 'activa' | 'inactiva'
+export type NaturalezaMovimientoTesoreria = 'ingreso' | 'egreso'
+export type EstadoMovimientoTesoreria = 'registrado' | 'anulado'
+export type EstadoConciliacionMovimiento = 'pendiente' | 'conciliado' | 'no_aplica' | 'anulado'
+export type EstadoConciliacionTesoreria = 'vigente' | 'revertida'
+
+export interface CuentaTesoreria {
+  id: string
+  edificioId: string
+  edificio: string | null
+  codigo: string
+  nombre: string
+  tipo: TipoCuentaTesoreria
+  entidadFinanciera: string | null
+  tipoCuentaBancaria: string | null
+  numeroCuenta: string | null
+  numeroCuentaMascara: string | null
+  estado: EstadoCuentaTesoreria
+  saldoRegistrado: string
+  totalIngresos: string
+  totalEgresos: string
+  movimientosCount: number
+  createdAt: string | null
+}
+
+export interface CuentaTesoreriaFormData {
+  edificio_id: string
+  codigo: string
+  nombre: string
+  tipo: TipoCuentaTesoreria
+  entidad_financiera: string
+  tipo_cuenta_bancaria: string
+  numero_cuenta: string
+}
+
+export interface CuentaTesoreriaOption {
+  id: string
+  edificioId: string
+  codigo: string
+  nombre: string
+  tipo: TipoCuentaTesoreria
+  estado?: EstadoCuentaTesoreria
+  numeroCuentaMascara?: string | null
+}
+
+export interface DesembolsoConciliacionCandidate {
+  id: string
+  numero: string
+  fechaDesembolso: string
+  monto: string
+  formaPago: FormaDesembolso
+  referencia: string | null
+  proveedor: string
+}
+
+export interface ConciliacionTesoreria {
+  id: string
+  estado: EstadoConciliacionTesoreria
+  conciliadoAt: string | null
+  conciliadoPor: string | null
+  nota: string | null
+  revertidoAt: string | null
+  revertidoPor: string | null
+  motivoReversion: string | null
+  desembolso: DesembolsoConciliacionCandidate | null
+}
+
+export interface MovimientoTesoreria {
+  id: string
+  edificioId: string
+  edificio: string | null
+  cuentaId: string
+  cuenta: string | null
+  cuentaCodigo: string
+  cuentaTipo: TipoCuentaTesoreria
+  fechaMovimiento: string
+  naturaleza: NaturalezaMovimientoTesoreria
+  monto: string
+  referencia: string | null
+  descripcion: string | null
+  estado: EstadoMovimientoTesoreria
+  estadoConciliacion: EstadoConciliacionMovimiento
+  registradoPor: string | null
+  anuladoPor: string | null
+  anuladoAt: string | null
+  motivoAnulacion: string | null
+  conciliacion: ConciliacionTesoreria | null
+  historialConciliaciones?: ConciliacionTesoreria[]
+  createdAt: string | null
+}
+
+export interface MovimientoTesoreriaFormData {
+  edificio_id: string
+  cuenta_id: string
+  fecha_movimiento: string
+  naturaleza: NaturalezaMovimientoTesoreria
+  monto: string
+  referencia: string
+  descripcion: string
+}

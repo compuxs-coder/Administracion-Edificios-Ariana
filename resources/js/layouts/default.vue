@@ -109,6 +109,18 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/desembolsos'),
   hidden: !canAny('desembolsos.ver')
 }, {
+  label: 'Cuentas de tesoreria',
+  icon: 'i-lucide-wallet-minimal',
+  to: '/cuentas-tesoreria',
+  onSelect: () => navigateTo('/cuentas-tesoreria'),
+  hidden: !canAny('tesoreria.ver')
+}, {
+  label: 'Movimientos de tesoreria',
+  icon: 'i-lucide-arrow-left-right',
+  to: '/movimientos-tesoreria',
+  onSelect: () => navigateTo('/movimientos-tesoreria'),
+  hidden: !canAny('tesoreria.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',
