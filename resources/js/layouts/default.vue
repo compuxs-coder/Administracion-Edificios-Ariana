@@ -121,6 +121,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/movimientos-tesoreria'),
   hidden: !canAny('tesoreria.ver')
 }, {
+  label: 'Operaciones',
+  icon: 'i-lucide-clipboard-wrench',
+  to: '/operaciones',
+  onSelect: () => navigateTo('/operaciones'),
+  hidden: !canAny('operaciones.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

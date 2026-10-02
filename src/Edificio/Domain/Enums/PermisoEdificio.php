@@ -35,4 +35,10 @@ enum PermisoEdificio: string
     case MOVIMIENTOS_TESORERIA_REGISTRAR = 'movimientos_tesoreria.registrar';
     case MOVIMIENTOS_TESORERIA_ANULAR = 'movimientos_tesoreria.anular';
     case CONCILIACIONES_GESTIONAR = 'conciliaciones.gestionar';
+    case OPERACIONES_VER = 'operaciones.ver';
+    case OPERACIONES_GESTIONAR = 'operaciones.gestionar';
+    case OPERACIONES_CAMBIAR_ESTADO = 'operaciones.cambiar_estado';
+    case OPERACIONES_ASIGNAR = 'operaciones.asignar';
+    case OPERACIONES_CANCELAR = 'operaciones.cancelar';
+    case OPERACIONES_REABRIR = 'operaciones.reabrir';
 }

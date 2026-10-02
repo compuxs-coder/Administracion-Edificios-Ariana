@@ -34,11 +34,13 @@ final class AccesoEdificioWebTest extends TestCase
         $administrator = UserEloquentModel::factory()->create();
         $propertyManager = UserEloquentModel::factory()->create();
         $financeManager = UserEloquentModel::factory()->create();
+        $operationsManager = UserEloquentModel::factory()->create();
         $viewer = UserEloquentModel::factory()->create();
         $building = $this->buildingFor($administrator);
         $otherBuilding = $this->buildingFor($administrator);
         $this->addMember($building, $propertyManager, [RolEdificio::GESTOR_PROPIEDAD]);
         $this->addMember($building, $financeManager, [RolEdificio::GESTOR_FINANZAS]);
+        $this->addMember($building, $operationsManager, [RolEdificio::GESTOR_OPERACIONES]);
         $this->addMember($building, $viewer, [RolEdificio::CONSULTA]);
         $this->addMember($otherBuilding, $propertyManager, [RolEdificio::CONSULTA]);
         $this->addMember($otherBuilding, $financeManager, [RolEdificio::CONSULTA]);
@@ -66,11 +68,30 @@ final class AccesoEdificioWebTest extends TestCase
         $this->assertFalse($access->hasPermission($financeManager->id, $otherBuilding->id, PermisoEdificio::CARGOS_GENERAR));
         $this->assertFalse($access->hasPermission($financeManager->id, $otherBuilding->id, PermisoEdificio::LECTURAS_REGISTRAR));
 
+        foreach ([
+            PermisoEdificio::OPERACIONES_VER,
+            PermisoEdificio::OPERACIONES_GESTIONAR,
+            PermisoEdificio::OPERACIONES_CAMBIAR_ESTADO,
+            PermisoEdificio::OPERACIONES_ASIGNAR,
+            PermisoEdificio::OPERACIONES_CANCELAR,
+            PermisoEdificio::OPERACIONES_REABRIR,
+            PermisoEdificio::EDIFICIO_VER,
+            PermisoEdificio::ESTRUCTURA_VER,
+        ] as $permission) {
+            $this->assertTrue($access->hasPermission($operationsManager->id, $building->id, $permission));
+        }
+        $this->assertFalse($access->hasPermission($operationsManager->id, $building->id, PermisoEdificio::PROPIEDAD_VER));
+        $this->assertFalse($access->hasPermission($operationsManager->id, $building->id, PermisoEdificio::GASTOS_VER));
+        $this->assertFalse($access->hasPermission($propertyManager->id, $building->id, PermisoEdificio::OPERACIONES_VER));
+        $this->assertFalse($access->hasPermission($financeManager->id, $building->id, PermisoEdificio::OPERACIONES_VER));
+
         $this->assertTrue($access->hasPermission($viewer->id, $building->id, PermisoEdificio::FINANZAS_VER));
         $this->assertTrue($access->hasPermission($viewer->id, $building->id, PermisoEdificio::COMPROBANTES_VER));
         $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::PAGOS_REGISTRAR));
         $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::LECTURAS_REGISTRAR));
         $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::MIEMBROS_VER));
+        $this->assertTrue($access->hasPermission($viewer->id, $building->id, PermisoEdificio::OPERACIONES_VER));
+        $this->assertFalse($access->hasPermission($viewer->id, $building->id, PermisoEdificio::OPERACIONES_GESTIONAR));
 
         $this->actingAs($financeManager)
             ->get(route('cargos.index'))

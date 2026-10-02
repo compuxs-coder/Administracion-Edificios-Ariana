@@ -44,6 +44,14 @@ use Src\Gastos\Infrastructure\Repositories\EloquentCuentaPorPagarRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentDesembolsoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
+use Src\Operaciones\Domain\Contracts\EstructuraMiembrosOperacionesReadInterface;
+use Src\Operaciones\Domain\Contracts\OrdenOperativaRepositoryInterface;
+use Src\Operaciones\Domain\Contracts\ProveedoresOperacionesReadInterface;
+use Src\Operaciones\Domain\Contracts\ReportantesOperacionesReadInterface;
+use Src\Operaciones\Infrastructure\Repositories\EloquentEstructuraMiembrosOperacionesRead;
+use Src\Operaciones\Infrastructure\Repositories\EloquentOrdenOperativaRepository;
+use Src\Operaciones\Infrastructure\Repositories\EloquentProveedoresOperacionesRead;
+use Src\Operaciones\Infrastructure\Repositories\EloquentReportantesOperacionesRead;
 use Src\Propiedad\Application\Policies\PropietarioPolicy;
 use Src\Propiedad\Application\Policies\ResidentePolicy;
 use Src\Propiedad\Domain\Contracts\OcupacionRepositoryInterface;
@@ -71,6 +79,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Finanzas',
         'Gastos',
         'Tesoreria',
+        'Operaciones',
         'Cliente',
         'Categoria',
         'Producto',
@@ -106,6 +115,10 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(CuentaTesoreriaRepositoryInterface::class, EloquentCuentaTesoreriaRepository::class);
         $this->app->bind(MovimientoTesoreriaRepositoryInterface::class, EloquentMovimientoTesoreriaRepository::class);
         $this->app->bind(ConciliacionDesembolsoQueryInterface::class, EloquentConciliacionDesembolsoQuery::class);
+        $this->app->bind(EstructuraMiembrosOperacionesReadInterface::class, EloquentEstructuraMiembrosOperacionesRead::class);
+        $this->app->bind(ReportantesOperacionesReadInterface::class, EloquentReportantesOperacionesRead::class);
+        $this->app->bind(ProveedoresOperacionesReadInterface::class, EloquentProveedoresOperacionesRead::class);
+        $this->app->bind(OrdenOperativaRepositoryInterface::class, EloquentOrdenOperativaRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

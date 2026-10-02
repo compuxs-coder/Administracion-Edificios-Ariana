@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, y `Tesoreria` registra cuentas, movimientos y conciliaciones. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, y `Operaciones` gestiona incidencias, solicitudes y mantenimiento correctivo. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -28,9 +28,9 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
-2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas` y `consulta`.
-3. Los 31 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos y tesorería. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `consulta` sólo dispone de lectura, incluidos `gastos.ver`, `desembolsos.ver` y `tesoreria.ver`.
+2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones` y `consulta`.
+3. Los 37 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería y operaciones. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes operativas y sólo recibe las lecturas auxiliares mínimas; `consulta` sólo dispone de lectura, incluida `operaciones.ver`.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -216,6 +216,25 @@ ETAPA 15 incorpora el contexto `Tesoreria` como continuación de los desembolsos
 - Los permisos son `tesoreria.ver`, `cuentas_tesoreria.gestionar`, `movimientos_tesoreria.registrar`, `movimientos_tesoreria.anular` y `conciliaciones.gestionar`. Administrador y gestor financiero reciben los cinco; consulta sólo lectura; gestor de propiedad ninguno.
 - Quedan fuera la importación CSV/OFX/CAMT, APIs bancarias, extractos y cierres de período, conciliación de pagos entrantes o gastos de contado, relaciones parciales o muchos-a-muchos, transferencias entre cuentas, arqueos de caja, saldos iniciales, multimoneda, comisiones, tolerancias, adjuntos, aprobaciones y contabilidad de partida doble.
 
+## Operaciones
+
+ETAPA 16 incorpora el contexto `Operaciones` para incidencias, solicitudes y mantenimiento correctivo como una vertical única antes de ampliar mantenimiento preventivo, áreas comunes o comunicación:
+
+1. Una orden operativa pertenece a un edificio, recibe un número global anual `OPR-AAAA-NNNNNN` y nace `reportada` con tipo `incidencia` o `solicitud`, título y descripción obligatorios. No existe una entidad preliminar separada: el reporte inicia directamente la orden.
+2. Sólo un usuario autenticado con membresía y permiso en el edificio registra la orden. Puede identificar opcionalmente al residente que originó el reporte; el actor administrativo y el snapshot del reportante se conservan por separado.
+3. La ubicación siempre conserva el edificio, puede referenciar un único elemento de la estructura física existente y admite un detalle libre para zonas todavía no modeladas. Toda referencia estructural debe pertenecer al mismo edificio.
+4. La prioridad obligatoria usa `baja`, `media`, `alta` o `critica`. La fecha objetivo manual es opcional y sus cambios quedan en bitácora. ETAPA 16 no calcula SLA ni ejecuta escalamiento automático.
+5. El flujo normal es `reportada -> en_revision -> en_progreso -> resuelta -> cerrada`. `reportada`, `en_revision` y `en_progreso` pueden terminar en `cancelada`; las órdenes resueltas o cerradas sólo pueden reabrirse a `en_progreso` con actor, fecha y motivo. `cancelada` es terminal.
+6. Una orden debe tener responsable vigente antes de entrar en `en_progreso` y antes de cualquier transición posterior. El responsable es exactamente un usuario interno con membresía activa o un proveedor activo del mismo edificio. Si después pierde esa condición, el historial se conserva, pero la orden debe reasignarse para avanzar o reabrirse. Cada reasignación cierra la asignación anterior y crea una fila histórica; nunca se sobrescribe ni elimina el historial.
+7. La orden puede asociar opcionalmente un proveedor y un contrato registrado existente. El contrato debe corresponder al mismo edificio y proveedor. Cuando el responsable es un proveedor, debe coincidir con el proveedor asociado a la orden; asignarlo establece esa asociación si todavía no existe. Ninguna asociación crea ni modifica proveedores, contratos, gastos, cuentas por pagar, desembolsos o movimientos de tesorería.
+8. Título, descripción, ubicación, prioridad, fecha objetivo, reportante, proveedor y contrato sólo pueden editarse en `reportada`, `en_revision` o `en_progreso`, y todo cambio genera bitácora. Las actuaciones y evidencias pueden agregarse también en `resuelta`, pero no en `cerrada` o `cancelada` sin reabrir la orden.
+9. Fotografías JPG/PNG y documentos PDF de hasta 10 MB se almacenan de forma privada, validan su contenido y permanecen asociados a la orden incluso después de resolverla, cerrarla o cancelarla. Cada orden admite hasta 100 archivos y 500 MB acumulados; cargas y descargas tienen límites de frecuencia. No se editan ni eliminan mientras no exista una política de conservación posterior.
+10. Una bitácora append-only registra creación, cambios operativos, transiciones, asignaciones, reaperturas, cancelaciones, evidencias y actuaciones manuales con actor y fecha. La bitácora no es un chat general.
+11. No existe eliminación física de órdenes, asignaciones, evidencias o entradas de bitácora. Las transiciones críticas se ejecutan dentro de transacciones y la base protege aislamiento, estados e historia.
+12. Los permisos son `operaciones.ver`, `operaciones.gestionar`, `operaciones.cambiar_estado`, `operaciones.asignar`, `operaciones.cancelar` y `operaciones.reabrir`. `administrador` y `gestor_operaciones` reciben los seis; `consulta` recibe sólo lectura; `gestor_propiedad` y `gestor_finanzas` no reciben permisos de Operaciones.
+13. `gestor_operaciones` es independiente de `gestor_propiedad`. Puede consultar la estructura necesaria y acceder únicamente a opciones mínimas de residentes, miembros, proveedores y contratos requeridas por Operaciones, sin recibir por ello permisos generales de Propiedad, miembros o Gastos.
+14. Quedan fuera el autoservicio de propietarios o residentes, mantenimiento preventivo, recurrencias, scheduler, catálogo completo de activos, inventario y repuestos, reservas de áreas comunes, chat, notificaciones generales, SLA, escalamiento automático, presupuestos, cotizaciones, órdenes de compra, cargos a residentes, integración financiera y reportería de Gobierno.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -225,7 +244,7 @@ ETAPA 15 incorpora el contexto `Tesoreria` como continuación de los desembolsos
 | Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados |
 | Tesorería | Cuentas bancarias y cajas, movimientos manuales y conciliación de desembolsos implementados; extractos, importación y conciliación de ingresos fuera de alcance |
-| Operaciones | Mantenimiento, incidencias y solicitudes |
+| Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16 |
 | Áreas comunes | Espacios, reglas y reservas |
 | Comunicación | Comunicados, documentos y notificaciones |
 | Gobierno | Reportes, trazabilidad y auditoría |
@@ -283,6 +302,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas y Gastos pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería y Operaciones pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

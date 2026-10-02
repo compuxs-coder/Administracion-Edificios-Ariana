@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 31 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 37 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -31,12 +31,21 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Cuentas por pagar paginadas con estados pendiente, parcial, pagada y anulada; anticipos y adjuntos permanecen fuera de alcance.
 - Tesorería por edificio con cuentas bancarias o cajas, movimientos manuales y conciliación uno-a-uno de egresos contra desembolsos registrados.
 - Conciliaciones reversibles con historial inmutable, estado derivado y bloqueo de anulaciones mientras la relación permanezca vigente.
+- Órdenes operativas para incidencias y solicitudes, con flujo trazable, responsables históricos, evidencias privadas y bitácora inmutable.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos y Tesorería dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería y Operaciones dentro del esquema PostgreSQL privado.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
+
+## ETAPA 16 implementada
+
+**Operaciones: incidencias, solicitudes y mantenimiento correctivo** parte de una única orden operativa, de tipo incidencia o solicitud, con número `OPR-AAAA-NNNNNN`, título y descripción. Comprende registro administrativo, ubicación, prioridad, fecha objetivo manual opcional, responsable interno o proveedor, flujo trazable, evidencias privadas y bitácora append-only.
+
+La etapa incorpora el rol `gestor_operaciones` y permisos separados para consulta, gestión, cambio de estado, asignación, cancelación y reapertura. No incluye autoservicio de residentes, mantenimiento preventivo, reservas de áreas comunes, chat, SLA, escalamiento automático ni generación de documentos financieros.
+
+El módulo dispone de páginas Inertia para listado, creación, edición y detalle; rutas de transición, asignación, cancelación, reapertura, actuaciones y evidencias; y garantías equivalentes en PostgreSQL y SQLite para aislamiento, estados e historia.
 
 ## Tecnologías
 
@@ -50,6 +59,7 @@ La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHI
 ## Requisitos
 
 - PHP 8.2 o superior con las extensiones requeridas por Laravel, PostgreSQL y SQLite para pruebas.
+- PHP web y cualquier proxy frontal configurados con límites de carga de al menos 12 MB y cuerpo de al menos 13 MB para admitir evidencias de 10 MB. Cada orden admite hasta 100 evidencias y 500 MB acumulados; las cargas y descargas están limitadas por usuario.
 - Composer.
 - PostgreSQL.
 - Node.js 22.19 o superior.

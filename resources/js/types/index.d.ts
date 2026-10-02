@@ -36,7 +36,7 @@ export interface EdificioFormData {
   responsable: string
 }
 
-export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'consulta'
+export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'consulta'
 
 export interface RolAccesoEdificio {
   codigo: RolEdificio
@@ -1020,4 +1020,162 @@ export interface MovimientoTesoreriaFormData {
   monto: string
   referencia: string
   descripcion: string
+}
+
+export type TipoOrdenOperativa = 'incidencia' | 'solicitud'
+export type PrioridadOrdenOperativa = 'baja' | 'media' | 'alta' | 'critica'
+export type EstadoOrdenOperativa = 'reportada' | 'en_revision' | 'en_progreso' | 'resuelta' | 'cerrada' | 'cancelada'
+export type TipoResponsableOrdenOperativa = 'usuario' | 'proveedor'
+export type TipoUbicacionOperativa = 'torre' | 'piso' | 'departamento' | 'parqueadero' | 'bodega'
+export type TipoEventoOrdenOperativa = 'creacion' | 'cambio_datos' | 'cambio_estado' | 'asignacion' | 'reasignacion' | 'cancelacion' | 'reapertura' | 'evidencia' | 'actuacion_manual'
+
+export interface EdificioOperacionOption {
+  id: string
+  nombre: string
+  estado: EstadoEdificio
+}
+
+export interface ElementoOperacionOption {
+  id: string
+  edificio_id: string
+  codigo?: string
+  nombre?: string | null
+  numero?: string
+  ubicacion?: string | null
+}
+
+export interface ReportanteOperacionOption {
+  edificioId: string
+  residenteId: string
+  nombre: string
+  identificacion: string
+}
+
+export interface ReportanteOperacionSnapshot {
+  edificioId?: string | null
+  residenteId?: string | null
+  nombre: string
+  tipoIdentificacion: string | null
+  identificacion: string | null
+  telefono?: string | null
+  correo?: string | null
+}
+
+export interface MiembroOperacionOption {
+  edificioId: string
+  id: string
+  nombre: string
+  correo: string
+}
+
+export interface ProveedorOperacionOption {
+  edificioId: string
+  proveedorId: string
+  nombre: string
+  identificacion: string
+}
+
+export interface ContratoOperacionOption {
+  id: string
+  edificioId: string
+  proveedorId: string
+  referencia: string
+  objeto: string
+  fechaInicio: string
+  fechaFin: string | null
+}
+
+export interface OrdenOperativaFormData {
+  edificio_id: string
+  tipo: TipoOrdenOperativa
+  titulo: string
+  descripcion: string
+  prioridad: PrioridadOrdenOperativa
+  fecha_objetivo: string
+  torre_id: string
+  piso_id: string
+  departamento_id: string
+  parqueadero_id: string
+  bodega_id: string
+  ubicacion_detalle: string
+  reportante_residente_id: string
+  proveedor_id: string
+  contrato_id: string
+}
+
+export interface AsignacionOrdenOperativa {
+  id: string
+  tipoResponsable: TipoResponsableOrdenOperativa
+  responsableNombre: string
+  fechaInicio: string | null
+  fechaFin: string | null
+}
+
+export interface EvidenciaOrdenOperativa {
+  id: string
+  nombre: string
+  mimeType: string
+  tamanoBytes: number
+  descripcion: string | null
+  createdAt: string | null
+}
+
+export interface BitacoraOrdenOperativa {
+  id: string
+  tipo: TipoEventoOrdenOperativa
+  actorNombre: string
+  detalle: Record<string, unknown> | null
+  createdAt: string | null
+}
+
+export interface OrdenOperativa {
+  id: string
+  edificioId: string
+  edificio?: string
+  numero: string
+  tipo: TipoOrdenOperativa
+  titulo: string
+  descripcion: string
+  prioridad: PrioridadOrdenOperativa
+  fechaObjetivo: string | null
+  estado: EstadoOrdenOperativa
+  torreId: string | null
+  pisoId: string | null
+  departamentoId: string | null
+  parqueaderoId: string | null
+  bodegaId: string | null
+  ubicacionDetalle: string | null
+  ubicacion?: {
+    tipo: TipoUbicacionOperativa | null
+    id: string | null
+    etiqueta: string | null
+    detalle: string | null
+  }
+  reportanteResidenteId: string | null
+  reportanteSnapshot: ReportanteOperacionSnapshot | null
+  proveedorId: string | null
+  proveedor?: ProveedorOperacionOption | null
+  contratoId: string | null
+  contrato?: ContratoOperacionOption | null
+  responsableActual: AsignacionOrdenOperativa | null
+  asignaciones?: AsignacionOrdenOperativa[]
+  evidencias?: EvidenciaOrdenOperativa[]
+  bitacora?: BitacoraOrdenOperativa[]
+  puedeEditar: boolean
+  puedeAportar: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface OrdenOperativaResumen {
+  id: string
+  edificioId: string
+  numero: string
+  tipo: TipoOrdenOperativa
+  titulo: string
+  prioridad: PrioridadOrdenOperativa
+  fechaObjetivo: string | null
+  estado: EstadoOrdenOperativa
+  responsableActual: AsignacionOrdenOperativa | null
+  puedeEditar: boolean
 }

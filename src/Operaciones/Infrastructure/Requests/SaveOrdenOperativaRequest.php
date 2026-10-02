@@ -1,0 +1,81 @@
+<?php
+
+namespace Src\Operaciones\Infrastructure\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
+use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Operaciones\Domain\Enums\PrioridadOrdenOperativa;
+use Src\Operaciones\Domain\Enums\TipoOrdenOperativa;
+
+final class SaveOrdenOperativaRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        $building = $this->route('edificio');
+
+        return $building instanceof EdificioEloquentModel
+            && ($this->user()?->can('access', [$building, PermisoEdificio::OPERACIONES_GESTIONAR]) ?? false);
+    }
+
+    /** @return array<string, mixed> */
+    public function rules(): array
+    {
+        $typeRules = $this->isMethod('post')
+            ? ['required', Rule::enum(TipoOrdenOperativa::class)]
+            : ['prohibited'];
+        $versionRules = $this->isMethod('post') ? ['prohibited'] : ['required', 'date'];
+
+        return [
+            'tipo' => $typeRules,
+            'updated_at' => $versionRules,
+            'titulo' => ['required', 'string', 'max:180'],
+            'descripcion' => ['required', 'string', 'max:10000'],
+            'prioridad' => ['required', Rule::enum(PrioridadOrdenOperativa::class)],
+            'fecha_objetivo' => ['nullable', 'date_format:Y-m-d'],
+            'torre_id' => ['nullable', 'uuid'],
+            'piso_id' => ['nullable', 'uuid'],
+            'departamento_id' => ['nullable', 'uuid'],
+            'parqueadero_id' => ['nullable', 'uuid'],
+            'bodega_id' => ['nullable', 'uuid'],
+            'ubicacion_detalle' => ['nullable', 'string', 'max:500'],
+            'reportante_residente_id' => ['nullable', 'uuid'],
+            'proveedor_id' => ['nullable', 'uuid', 'required_with:contrato_id'],
+            'contrato_id' => ['nullable', 'uuid'],
+        ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $fields = ['torre_id', 'piso_id', 'departamento_id', 'parqueadero_id', 'bodega_id'];
+            $selected = array_filter($fields, fn (string $field): bool => $this->input($field) !== null);
+            if (count($selected) > 1) {
+                $validator->errors()->add('ubicacion', 'Seleccione como máximo un elemento estructural.');
+            }
+            if ($selected === [] && trim((string) $this->input('ubicacion_detalle')) === '') {
+                $validator->errors()->add('ubicacion_detalle', 'Indique un elemento estructural o un detalle de ubicación.');
+            }
+        });
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $nullable = [
+            'fecha_objetivo', 'torre_id', 'piso_id', 'departamento_id', 'parqueadero_id',
+            'bodega_id', 'ubicacion_detalle', 'reportante_residente_id', 'proveedor_id', 'contrato_id',
+        ];
+        $normalized = [];
+        foreach ($nullable as $field) {
+            $value = trim((string) $this->input($field));
+            $normalized[$field] = $value === '' ? null : $value;
+        }
+        $this->merge([
+            ...$normalized,
+            'titulo' => trim((string) $this->input('titulo')),
+            'descripcion' => trim((string) $this->input('descripcion')),
+        ]);
+    }
+}

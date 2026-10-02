@@ -2,11 +2,58 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos y conciliación de egresos en Tesorería son módulos funcionales. Operaciones todavía no está implementado.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería y órdenes operativas son módulos funcionales.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
 Los contextos Cliente, Categoria, Producto y Factura proceden de la aplicación anterior. Se mantienen sólo cuando aún tienen rutas, pruebas o dependencias activas y no representan el modelo definitivo del sistema.
+
+## ETAPA 16: Operaciones
+
+ETAPA 16 implementa `Operaciones` mediante una única orden operativa de tipo incidencia o solicitud.
+
+Reglas aprobadas:
+
+- La orden pertenece obligatoriamente a un edificio, recibe un consecutivo global anual `OPR-AAAA-NNNNNN` y nace `reportada` con título y descripción obligatorios.
+- Sólo miembros administrativos autorizados pueden registrarla. El actor queda auditado y puede señalar opcionalmente a un residente del edificio como reportante, conservando un snapshot de su identidad.
+- La ubicación admite un único elemento existente de la estructura física y un detalle libre. Las relaciones se validan contra el edificio exacto.
+- La prioridad obligatoria admite `baja`, `media`, `alta` o `critica`. La fecha objetivo manual es opcional. No existen SLA ni escalamiento automático.
+- El flujo estricto es `reportada -> en_revision -> en_progreso -> resuelta -> cerrada`.
+- `reportada`, `en_revision` y `en_progreso` admiten cancelación con actor, fecha y motivo. `cancelada` es terminal.
+- Sólo `resuelta` o `cerrada` pueden reabrirse; vuelven a `en_progreso` y conservan actor, fecha y motivo.
+- Antes de entrar en `en_progreso` y antes de cada transición posterior debe existir exactamente un responsable vigente: usuario con membresía activa o proveedor activo en el edificio. Si pierde esa condición, debe reasignarse antes de avanzar o reabrir.
+- Toda asignación o reasignación conserva un intervalo histórico y el actor que realizó el cambio.
+- Un proveedor y un contrato registrado pueden asociarse opcionalmente a la orden. El contrato debe corresponder al proveedor y edificio indicados. Un proveedor responsable debe coincidir con el asociado; la primera asignación puede establecer esa asociación.
+- Título, descripción, ubicación, prioridad, fecha objetivo, reportante, proveedor y contrato sólo se editan en estados activos y todo cambio genera bitácora.
+- Las actuaciones y evidencias pueden agregarse en `reportada`, `en_revision`, `en_progreso` o `resuelta`; `cerrada` y `cancelada` no admiten nuevos aportes.
+- Fotografías JPG/PNG y documentos PDF de hasta 10 MB se almacenan en un disco privado, se validan por contenido y permanecen como historial aun después del cierre o cancelación. Cada orden admite hasta 100 archivos y 500 MB acumulados; las rutas de carga y descarga aplican límites de frecuencia.
+- La bitácora es append-only y registra creación, cambios, transiciones, responsables, evidencias, cancelaciones, reaperturas y actuaciones manuales. No funciona como chat.
+- No hay eliminación física de órdenes, asignaciones, evidencias o bitácora.
+
+RBAC:
+
+```text
+operaciones.ver
+operaciones.gestionar
+operaciones.cambiar_estado
+operaciones.asignar
+operaciones.cancelar
+operaciones.reabrir
+```
+
+El rol `gestor_operaciones` y el administrador reciben los seis permisos; consulta recibe sólo `operaciones.ver`; gestor de propiedad y gestor financiero no reciben permisos de Operaciones. El nuevo rol sólo obtiene las lecturas auxiliares mínimas necesarias, sin acceso administrativo general a Propiedad, miembros o Gastos.
+
+Quedan fuera de ETAPA 16:
+
+- Autoservicio de propietarios o residentes.
+- Mantenimiento preventivo, recurrencias y programación automática.
+- Catálogo completo de activos, inventario y repuestos.
+- Reservas y reglas de áreas comunes.
+- Chat, comunicados y notificaciones generales.
+- SLA y escalamiento automático.
+- Presupuestos, cotizaciones y órdenes de compra.
+- Creación o modificación de proveedores, contratos, gastos, cuentas por pagar, desembolsos o movimientos financieros.
+- Cargos a residentes y reportería transversal de Gobierno.
 
 ## Organización
 
@@ -56,10 +103,11 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 31 permisos y administración de miembros |
+| `administrador` | Los 37 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos y tesorería |
+| `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería y operaciones |
 
 Permisos:
 
@@ -76,6 +124,8 @@ gastos.ver                      gastos.gestionar                 gastos.anular
 desembolsos.ver                 desembolsos.registrar            desembolsos.anular
 tesoreria.ver                  cuentas_tesoreria.gestionar       movimientos_tesoreria.registrar
 movimientos_tesoreria.anular   conciliaciones.gestionar
+operaciones.ver                operaciones.gestionar             operaciones.cambiar_estado
+operaciones.asignar            operaciones.cancelar              operaciones.reabrir
 ```
 
 Reglas de seguridad:
@@ -121,6 +171,7 @@ Durante la transición:
 - Conceptos de cobro, tarifas, lecturas de consumo, cargos y sus alcances por departamento residen en `administracion_edificios`.
 - Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar, desembolsos, sus aplicaciones y consecutivos residen en `administracion_edificios`.
 - Cuentas de tesorería, movimientos y conciliaciones de desembolsos residen en `administracion_edificios`.
+- Órdenes operativas, responsables históricos, evidencias, bitácora y consecutivos residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -472,6 +523,42 @@ PATCH  /edificios/{edificio}/cuentas-tesoreria/{cuenta}/movimientos/{movimiento}
 ```
 
 No existen rutas de eliminación para cuentas, movimientos o conciliaciones.
+
+## Módulo Operaciones
+
+ETAPA 16 implementa `src/Operaciones` para incidencias, solicitudes y mantenimiento correctivo por edificio.
+
+Tablas:
+
+- `ordenes_operativas`: datos centrales, ubicación, reportante congelado, proveedor/contrato opcionales, estado y trazabilidad.
+- `asignaciones_orden_operativa`: intervalos históricos del responsable interno o proveedor, con una única fila vigente.
+- `evidencias_orden_operativa`: metadatos, SHA-256 y ruta privada de archivos inmutables.
+- `bitacora_orden_operativa`: eventos append-only con actor, fecha y detalle estructurado.
+- `consecutivos_orden_operativa`: contador anual global para números `OPR-AAAA-NNNNNN`.
+
+La aplicación vuelve a comprobar permiso y edificio dentro de cada transacción. Las FKs compuestas acotan órdenes, actores, reportantes, estructura, proveedores y contratos al edificio exacto. PostgreSQL bloquea transiciones inválidas, edición terminal, responsables duplicados o inactivos, cancelaciones con una asignación todavía abierta, nuevas asignaciones después de cancelar, mutación de historia y eliminación física. SQLite instala guards equivalentes para las pruebas automáticas.
+
+Los archivos PDF/JPG/PNG se validan por contenido y tamaño, se escriben en el disco privado `evidence` y se verifican mediante tamaño y SHA-256 al descargar. Si falla la transacción después de almacenar un archivo, el repositorio intenta retirarlo antes de propagar el error original.
+
+Rutas principales:
+
+```text
+GET    /operaciones
+GET    /operaciones/create
+POST   /edificios/{edificio}/operaciones
+GET    /edificios/{edificio}/operaciones/{orden}
+GET    /edificios/{edificio}/operaciones/{orden}/edit
+PUT    /edificios/{edificio}/operaciones/{orden}
+PATCH  /edificios/{edificio}/operaciones/{orden}/estado
+POST   /edificios/{edificio}/operaciones/{orden}/asignaciones
+PATCH  /edificios/{edificio}/operaciones/{orden}/cancelar
+PATCH  /edificios/{edificio}/operaciones/{orden}/reabrir
+POST   /edificios/{edificio}/operaciones/{orden}/actuaciones
+POST   /edificios/{edificio}/operaciones/{orden}/evidencias
+GET    /edificios/{edificio}/operaciones/{orden}/evidencias/{evidencia}/download
+```
+
+No existen rutas de eliminación para órdenes, asignaciones, actuaciones o evidencias.
 
 ## Módulos transitorios
 
