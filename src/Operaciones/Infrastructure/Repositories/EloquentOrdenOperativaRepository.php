@@ -18,7 +18,10 @@ use Src\Operaciones\Domain\Contracts\OrdenOperativaRepositoryInterface;
 use Src\Operaciones\Domain\Contracts\ProveedoresOperacionesReadInterface;
 use Src\Operaciones\Domain\Contracts\ReportantesOperacionesReadInterface;
 use Src\Operaciones\Domain\Enums\EstadoOrdenOperativa;
+use Src\Operaciones\Domain\Enums\OrigenOrdenOperativa;
+use Src\Operaciones\Domain\Enums\TipoActorOperativo;
 use Src\Operaciones\Domain\Enums\TipoEventoOrdenOperativa;
+use Src\Operaciones\Domain\Enums\TipoOrdenOperativa;
 use Src\Operaciones\Domain\Enums\TipoResponsableOrdenOperativa;
 use Src\Operaciones\Infrastructure\Models\AsignacionOrdenOperativaEloquentModel;
 use Src\Operaciones\Infrastructure\Models\BitacoraOrdenOperativaEloquentModel;
@@ -42,7 +45,7 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
     {
         $query = OrdenOperativaEloquentModel::query()
             ->whereIn('edificio_id', $this->access->buildingIds($userId, PermisoEdificio::OPERACIONES_VER))
-            ->with('asignacionActual')
+            ->with(['asignacionActual', 'ocurrenciaMantenimiento.plan'])
             ->when($filters['edificio_id'] ?? null, static fn (Builder $query, string $id) => $query->where('edificio_id', $id))
             ->when($filters['tipo'] ?? null, static fn (Builder $query, string $type) => $query->where('tipo', $type))
             ->when($filters['estado'] ?? null, static fn (Builder $query, string $state) => $query->where('estado', $state))
@@ -76,6 +79,7 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
                 'asignaciones' => static fn ($query) => $query->orderByDesc('fecha_inicio')->orderByDesc('id'),
                 'evidencias' => static fn ($query) => $query->orderByDesc('created_at')->orderByDesc('id'),
                 'bitacora' => static fn ($query) => $query->orderByDesc('created_at')->orderByDesc('id'),
+                'ocurrenciaMantenimiento.plan',
             ]);
         }
         $order = $query->findOrFail($ordenId);
@@ -105,7 +109,10 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
             $result['bitacora'] = $order->bitacora->map(fn (BitacoraOrdenOperativaEloquentModel $entry): array => [
                 'id' => $entry->id,
                 'tipo' => $entry->tipo->value,
-                'actorNombre' => $actorNames[$entry->actor_user_id] ?? 'Usuario no disponible',
+                'actorTipo' => $entry->actor_tipo->value,
+                'actorNombre' => $entry->actor_tipo === TipoActorOperativo::SISTEMA
+                    ? 'Sistema'
+                    : ($actorNames[$entry->actor_user_id] ?? 'Usuario no disponible'),
                 'detalle' => $this->safeEventDetail($entry, $assignmentNames),
                 'createdAt' => $entry->created_at?->toIso8601String(),
             ])->all();
@@ -161,15 +168,57 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
                 'edificio_id' => $edificioId,
                 'numero' => $this->nextNumber(),
                 'tipo' => $data['tipo'],
+                'origen' => OrigenOrdenOperativa::MANUAL,
+                'ocurrencia_mantenimiento_id' => null,
                 ...$this->persistenceData($data),
                 'reportante_snapshot' => $reporter,
                 'estado' => EstadoOrdenOperativa::REPORTADA,
                 'creada_por_user_id' => $userId,
+                'creada_por_tipo' => TipoActorOperativo::USUARIO,
             ])->save();
             $this->recordEvent($order, $userId, TipoEventoOrdenOperativa::CREACION, [
                 'numero' => $order->numero,
                 'datos' => $this->coreSnapshot($order),
             ]);
+
+            return ['id' => $order->id, 'numero' => $order->numero];
+        });
+    }
+
+    public function createPreventive(string $edificioId, string $occurrenceId, array $data): array
+    {
+        return DB::transaction(function () use ($edificioId, $occurrenceId, $data): array {
+            $this->structure->assertLocation($edificioId, $data);
+            $providerId = $data['proveedor_id'] ?? null;
+            if ($providerId !== null) {
+                $this->activeProvider($edificioId, $providerId, true);
+            }
+            $this->registeredContract($edificioId, $providerId, $data['contrato_id'] ?? null, true);
+
+            $order = new OrdenOperativaEloquentModel();
+            $order->fill([
+                'edificio_id' => $edificioId,
+                'numero' => $this->nextNumber(),
+                'tipo' => TipoOrdenOperativa::MANTENIMIENTO_PREVENTIVO,
+                'origen' => OrigenOrdenOperativa::PROGRAMACION_PREVENTIVA,
+                'ocurrencia_mantenimiento_id' => $occurrenceId,
+                ...$this->persistenceData([
+                    ...$data,
+                    'fecha_objetivo' => $data['fecha_programada'],
+                    'reportante_residente_id' => null,
+                ]),
+                'reportante_snapshot' => null,
+                'estado' => EstadoOrdenOperativa::REPORTADA,
+                'creada_por_user_id' => null,
+                'creada_por_tipo' => TipoActorOperativo::SISTEMA,
+            ])->save();
+            $this->recordEvent($order, null, TipoEventoOrdenOperativa::CREACION, [
+                'numero' => $order->numero,
+                'origen' => OrigenOrdenOperativa::PROGRAMACION_PREVENTIVA->value,
+                'planCodigo' => $data['plan_codigo'],
+                'fechaProgramada' => $data['fecha_programada'],
+                'datos' => $this->coreSnapshot($order),
+            ], TipoActorOperativo::SISTEMA);
 
             return ['id' => $order->id, 'numero' => $order->numero];
         });
@@ -634,12 +683,13 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
         ];
     }
 
-    private function recordEvent(OrdenOperativaEloquentModel $order, string $actorId, TipoEventoOrdenOperativa $type, ?array $detail): void
+    private function recordEvent(OrdenOperativaEloquentModel $order, ?string $actorId, TipoEventoOrdenOperativa $type, ?array $detail, TipoActorOperativo $actorType = TipoActorOperativo::USUARIO): void
     {
         BitacoraOrdenOperativaEloquentModel::query()->create([
             'edificio_id' => $order->edificio_id,
             'orden_operativa_id' => $order->id,
             'tipo' => $type,
+            'actor_tipo' => $actorType,
             'actor_user_id' => $actorId,
             'detalle' => $detail,
             'created_at' => CarbonImmutable::now(),
@@ -689,6 +739,8 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
             'edificioId' => $order->edificio_id,
             'numero' => $order->numero,
             ...$this->coreSnapshot($order),
+            'origen' => $order->origen->value,
+            'planMantenimiento' => $this->serializePreventiveSource($order),
             'reportanteSnapshot' => $this->reporterForPresentation($order->reportante_snapshot, $includeReporterContact),
             'estado' => $order->estado->value,
             'responsableActual' => $order->relationLoaded('asignacionActual') && $order->asignacionActual !== null
@@ -724,6 +776,8 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
             'edificioId' => $order->edificio_id,
             'numero' => $order->numero,
             'tipo' => $order->tipo->value,
+            'origen' => $order->origen->value,
+            'planMantenimiento' => $this->serializePreventiveSource($order),
             'titulo' => $order->titulo,
             'prioridad' => $order->prioridad->value,
             'fechaObjetivo' => $order->fecha_objetivo?->format('Y-m-d'),
@@ -782,7 +836,13 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
         $detail = $entry->detalle ?? [];
 
         return match ($entry->tipo) {
-            TipoEventoOrdenOperativa::CREACION => ['resumen' => 'Datos iniciales de la orden registrados.'],
+            TipoEventoOrdenOperativa::CREACION => [
+                'resumen' => ($detail['origen'] ?? null) === OrigenOrdenOperativa::PROGRAMACION_PREVENTIVA->value
+                    ? 'Orden generada automáticamente desde un plan preventivo.'
+                    : 'Datos iniciales de la orden registrados.',
+                'planCodigo' => $detail['planCodigo'] ?? null,
+                'fechaProgramada' => $detail['fechaProgramada'] ?? null,
+            ],
             TipoEventoOrdenOperativa::CAMBIO_DATOS => ['cambios' => $this->safeChanges($detail['cambios'] ?? [])],
             TipoEventoOrdenOperativa::CAMBIO_ESTADO => [
                 'estadoAnterior' => $detail['estadoAnterior'] ?? null,
@@ -829,6 +889,21 @@ final class EloquentOrdenOperativaRepository implements OrdenOperativaRepository
         }
 
         return $result;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function serializePreventiveSource(OrdenOperativaEloquentModel $order): ?array
+    {
+        if (! $order->relationLoaded('ocurrenciaMantenimiento') || $order->ocurrenciaMantenimiento === null) {
+            return null;
+        }
+        $occurrence = $order->ocurrenciaMantenimiento;
+
+        return [
+            'planId' => $occurrence->plan_id,
+            'planCodigo' => $occurrence->relationLoaded('plan') ? $occurrence->plan?->codigo : null,
+            'fechaProgramada' => $occurrence->fecha_programada?->format('Y-m-d'),
+        ];
     }
 
     private function nextStateChangeTime(OrdenOperativaEloquentModel $order): CarbonImmutable

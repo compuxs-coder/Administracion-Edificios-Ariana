@@ -1022,7 +1022,9 @@ export interface MovimientoTesoreriaFormData {
   descripcion: string
 }
 
-export type TipoOrdenOperativa = 'incidencia' | 'solicitud'
+export type TipoOrdenOperativa = 'incidencia' | 'solicitud' | 'mantenimiento_preventivo'
+export type OrigenOrdenOperativa = 'manual' | 'programacion_preventiva'
+export type TipoActorOperativo = 'usuario' | 'sistema'
 export type PrioridadOrdenOperativa = 'baja' | 'media' | 'alta' | 'critica'
 export type EstadoOrdenOperativa = 'reportada' | 'en_revision' | 'en_progreso' | 'resuelta' | 'cerrada' | 'cancelada'
 export type TipoResponsableOrdenOperativa = 'usuario' | 'proveedor'
@@ -1123,6 +1125,7 @@ export interface EvidenciaOrdenOperativa {
 export interface BitacoraOrdenOperativa {
   id: string
   tipo: TipoEventoOrdenOperativa
+  actorTipo: TipoActorOperativo
   actorNombre: string
   detalle: Record<string, unknown> | null
   createdAt: string | null
@@ -1134,6 +1137,8 @@ export interface OrdenOperativa {
   edificio?: string
   numero: string
   tipo: TipoOrdenOperativa
+  origen: OrigenOrdenOperativa
+  planMantenimiento: { planId: string, planCodigo: string | null, fechaProgramada: string } | null
   titulo: string
   descripcion: string
   prioridad: PrioridadOrdenOperativa
@@ -1172,10 +1177,99 @@ export interface OrdenOperativaResumen {
   edificioId: string
   numero: string
   tipo: TipoOrdenOperativa
+  origen: OrigenOrdenOperativa
+  planMantenimiento: { planId: string, planCodigo: string | null, fechaProgramada: string } | null
   titulo: string
   prioridad: PrioridadOrdenOperativa
   fechaObjetivo: string | null
   estado: EstadoOrdenOperativa
   responsableActual: AsignacionOrdenOperativa | null
   puedeEditar: boolean
+}
+
+export type EstadoPlanMantenimientoPreventivo = 'inactivo' | 'activo'
+export type UnidadRecurrenciaMantenimiento = 'diaria' | 'semanal' | 'mensual' | 'anual'
+export type EstadoOcurrenciaMantenimientoPreventivo = 'pendiente' | 'generada' | 'bloqueada' | 'omitida'
+export type TipoEventoPlanMantenimiento = 'creacion' | 'cambio_datos' | 'activacion' | 'pausa' | 'generacion' | 'bloqueo' | 'reintento' | 'omision'
+
+export interface PlanMantenimientoPreventivoFormData {
+  edificio_id: string
+  codigo: string
+  titulo: string
+  descripcion: string
+  prioridad: PrioridadOrdenOperativa
+  unidad_recurrencia: UnidadRecurrenciaMantenimiento
+  intervalo_recurrencia: number
+  dias_anticipacion: number
+  torre_id: string
+  piso_id: string
+  departamento_id: string
+  parqueadero_id: string
+  bodega_id: string
+  ubicacion_detalle: string
+  proveedor_id: string
+  contrato_id: string
+}
+
+export interface OcurrenciaMantenimientoPreventivo {
+  id: string
+  fechaProgramada: string
+  estado: EstadoOcurrenciaMantenimientoPreventivo
+  motivo: string | null
+  procesadaAt: string | null
+  orden: { id: string, numero: string, estado: EstadoOrdenOperativa } | null
+}
+
+export interface BitacoraPlanMantenimiento {
+  id: string
+  tipo: TipoEventoPlanMantenimiento
+  actorTipo: TipoActorOperativo
+  actorNombre: string
+  detalle: Record<string, unknown> | null
+  createdAt: string | null
+}
+
+export interface PlanMantenimientoPreventivo {
+  id: string
+  edificioId: string
+  edificio?: string
+  codigo: string
+  titulo: string
+  descripcion: string
+  prioridad: PrioridadOrdenOperativa
+  unidadRecurrencia: UnidadRecurrenciaMantenimiento
+  intervaloRecurrencia: number
+  diasAnticipacion: number
+  estado: EstadoPlanMantenimientoPreventivo
+  fechaAncla: string | null
+  proximaFechaProgramada: string | null
+  secuenciaSiguiente: number
+  torreId: string | null
+  pisoId: string | null
+  departamentoId: string | null
+  parqueaderoId: string | null
+  bodegaId: string | null
+  ubicacionDetalle: string | null
+  ubicacion?: { tipo: TipoUbicacionOperativa | null, id: string | null, etiqueta: string | null, detalle: string | null }
+  proveedorId: string | null
+  proveedor?: ProveedorOperacionOption | null
+  contratoId: string | null
+  contrato?: ContratoOperacionOption | null
+  ocurrencias?: OcurrenciaMantenimientoPreventivo[]
+  bitacora?: BitacoraPlanMantenimiento[]
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface PlanMantenimientoPreventivoResumen {
+  id: string
+  edificioId: string
+  codigo: string
+  titulo: string
+  prioridad: PrioridadOrdenOperativa
+  unidadRecurrencia: UnidadRecurrenciaMantenimiento
+  intervaloRecurrencia: number
+  estado: EstadoPlanMantenimientoPreventivo
+  proximaFechaProgramada: string | null
+  ocurrenciasBloqueadas: number
 }

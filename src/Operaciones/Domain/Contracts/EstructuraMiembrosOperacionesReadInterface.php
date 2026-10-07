@@ -14,7 +14,7 @@ interface EstructuraMiembrosOperacionesReadInterface
     public function members(array $buildingIds): array;
 
     /** @param array<string, mixed> $location @param array<string, mixed> $currentLocation */
-    public function assertLocation(string $buildingId, array $location, array $currentLocation = []): void;
+    public function assertLocation(string $buildingId, array $location, array $currentLocation = [], bool $lockForUpdate = false): void;
 
     /** @param array<string, mixed> $location @return array{tipo: string, id: string, etiqueta: string}|null */
     public function location(string $buildingId, array $location): ?array;

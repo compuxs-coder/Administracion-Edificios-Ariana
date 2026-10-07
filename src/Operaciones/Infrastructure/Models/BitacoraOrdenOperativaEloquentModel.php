@@ -6,6 +6,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Src\Operaciones\Domain\Enums\TipoEventoOrdenOperativa;
+use Src\Operaciones\Domain\Enums\TipoActorOperativo;
 use Src\Operaciones\Infrastructure\Models\Concerns\UsesApplicationSchema;
 
 final class BitacoraOrdenOperativaEloquentModel extends Model
@@ -14,7 +15,7 @@ final class BitacoraOrdenOperativaEloquentModel extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['edificio_id', 'orden_operativa_id', 'tipo', 'actor_user_id', 'detalle', 'created_at'];
+    protected $fillable = ['edificio_id', 'orden_operativa_id', 'tipo', 'actor_tipo', 'actor_user_id', 'detalle', 'created_at'];
 
     public function getTable(): string
     {
@@ -31,6 +32,7 @@ final class BitacoraOrdenOperativaEloquentModel extends Model
     {
         return [
             'tipo' => TipoEventoOrdenOperativa::class,
+            'actor_tipo' => TipoActorOperativo::class,
             'detalle' => 'array',
             'created_at' => 'immutable_datetime',
         ];

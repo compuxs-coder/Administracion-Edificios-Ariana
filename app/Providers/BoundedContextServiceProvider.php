@@ -45,10 +45,12 @@ use Src\Gastos\Infrastructure\Repositories\EloquentDesembolsoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
 use Src\Operaciones\Domain\Contracts\EstructuraMiembrosOperacionesReadInterface;
+use Src\Operaciones\Domain\Contracts\MantenimientoPreventivoRepositoryInterface;
 use Src\Operaciones\Domain\Contracts\OrdenOperativaRepositoryInterface;
 use Src\Operaciones\Domain\Contracts\ProveedoresOperacionesReadInterface;
 use Src\Operaciones\Domain\Contracts\ReportantesOperacionesReadInterface;
 use Src\Operaciones\Infrastructure\Repositories\EloquentEstructuraMiembrosOperacionesRead;
+use Src\Operaciones\Infrastructure\Repositories\EloquentMantenimientoPreventivoRepository;
 use Src\Operaciones\Infrastructure\Repositories\EloquentOrdenOperativaRepository;
 use Src\Operaciones\Infrastructure\Repositories\EloquentProveedoresOperacionesRead;
 use Src\Operaciones\Infrastructure\Repositories\EloquentReportantesOperacionesRead;
@@ -119,6 +121,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(ReportantesOperacionesReadInterface::class, EloquentReportantesOperacionesRead::class);
         $this->app->bind(ProveedoresOperacionesReadInterface::class, EloquentProveedoresOperacionesRead::class);
         $this->app->bind(OrdenOperativaRepositoryInterface::class, EloquentOrdenOperativaRepository::class);
+        $this->app->bind(MantenimientoPreventivoRepositoryInterface::class, EloquentMantenimientoPreventivoRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

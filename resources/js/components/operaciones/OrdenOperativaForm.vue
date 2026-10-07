@@ -124,7 +124,8 @@ const contractItems = computed(() => props.contratos
   .map(item => ({ label: `${item.referencia} · ${item.objeto}`, value: item.id })))
 const typeItems: Array<{ label: string, value: TipoOrdenOperativa }> = [
   { label: 'Incidencia', value: 'incidencia' },
-  { label: 'Solicitud', value: 'solicitud' }
+  { label: 'Solicitud', value: 'solicitud' },
+  ...(props.initial.tipo === 'mantenimiento_preventivo' ? [{ label: 'Mantenimiento preventivo', value: 'mantenimiento_preventivo' as const }] : [])
 ]
 const priorityItems = [
   { label: 'Baja', value: 'baja' },

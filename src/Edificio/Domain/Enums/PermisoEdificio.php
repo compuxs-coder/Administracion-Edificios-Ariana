@@ -41,4 +41,7 @@ enum PermisoEdificio: string
     case OPERACIONES_ASIGNAR = 'operaciones.asignar';
     case OPERACIONES_CANCELAR = 'operaciones.cancelar';
     case OPERACIONES_REABRIR = 'operaciones.reabrir';
+    case MANTENIMIENTO_PREVENTIVO_VER = 'mantenimiento_preventivo.ver';
+    case MANTENIMIENTO_PREVENTIVO_GESTIONAR = 'mantenimiento_preventivo.gestionar';
+    case MANTENIMIENTO_PREVENTIVO_PROGRAMAR = 'mantenimiento_preventivo.programar';
 }

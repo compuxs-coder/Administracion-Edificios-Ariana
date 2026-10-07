@@ -70,7 +70,7 @@ final class EloquentEstructuraMiembrosOperacionesRead implements EstructuraMiemb
             ])->all();
     }
 
-    public function assertLocation(string $buildingId, array $location, array $currentLocation = []): void
+    public function assertLocation(string $buildingId, array $location, array $currentLocation = [], bool $lockForUpdate = false): void
     {
         $map = [
             'torre_id' => 'torres',
@@ -93,7 +93,10 @@ final class EloquentEstructuraMiembrosOperacionesRead implements EstructuraMiemb
             if (($currentLocation[$field] ?? null) !== $location[$field]) {
                 $query->where('estado', 'activo');
             }
-            if (! $query->exists()) {
+            if ($lockForUpdate) {
+                $query->lockForUpdate();
+            }
+            if ($query->first(['id']) === null) {
                 throw ValidationException::withMessages([$field => 'El elemento estructural no pertenece al edificio.']);
             }
         }

@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería y órdenes operativas son módulos funcionales.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas y mantenimiento preventivo son módulos funcionales.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -55,6 +55,50 @@ Quedan fuera de ETAPA 16:
 - Creación o modificación de proveedores, contratos, gastos, cuentas por pagar, desembolsos o movimientos financieros.
 - Cargos a residentes y reportería transversal de Gobierno.
 
+ETAPA 17 incorpora mantenimiento preventivo, recurrencias y programación automática sin modificar los demás límites de ETAPA 16.
+
+## ETAPA 17: Mantenimiento preventivo
+
+ETAPA 17 amplía `Operaciones` con planes recurrentes por edificio y generación idempotente de órdenes preventivas.
+
+Reglas aprobadas:
+
+- El plan usa un código normalizado en mayúsculas y único por edificio, título, descripción, prioridad y una ubicación estructural o libre. No introduce un catálogo separado de activos.
+- Puede vincular opcionalmente un proveedor activo y un contrato registrado que correspondan entre sí y al mismo edificio. El vínculo no modifica esos registros.
+- La recurrencia admite unidad diaria, semanal, mensual o anual; intervalo de 1 a 99; y anticipación de 0 a 365 días.
+- El calendario se deriva de la fecha ancla y el número de secuencia, no de la última ejecución. Así evita deriva, conserva el fin de mes y recupera el día bisiesto cuando corresponde.
+- El plan nace `inactivo` y sólo puede editarse en ese estado. Activarlo exige una primera fecha no pasada.
+- Pausar omite con trazabilidad cualquier ocurrencia pendiente o bloqueada, limpia la programación y exige una fecha nueva al reactivar. Las pausas deliberadas no se recuperan.
+- Cada fecha crea como máximo una ocurrencia con estado `pendiente`, `generada`, `bloqueada` u `omitida`.
+- Una ocurrencia generada crea exactamente una orden `mantenimiento_preventivo` con origen `programacion_preventiva`, actor `sistema`, estado `reportada` y sin responsable automático.
+- El proceso revalida estructura, proveedor y contrato en cada ejecución. Una dependencia inválida bloquea la ocurrencia con motivo y no avanza el calendario; puede reintentarse u omitirse con motivo por un usuario autorizado.
+- La generación procesa vencimientos técnicos en orden, por lotes limitados e idempotentes. La recuperación no duplica ocurrencias ni órdenes.
+- La bitácora append-only del plan registra creación, cambios, activación, pausa, generación, bloqueo, reintento y omisión, diferenciando actores `usuario` y `sistema`.
+- No se eliminan planes, ocurrencias o entradas de bitácora. PostgreSQL y SQLite protegen forma, aislamiento por edificio, vínculos, actores, transiciones e inmutabilidad.
+- No se generan gastos, cuentas por pagar, desembolsos, movimientos de tesorería, cargos o documentos financieros.
+
+RBAC:
+
+```text
+mantenimiento_preventivo.ver
+mantenimiento_preventivo.gestionar
+mantenimiento_preventivo.programar
+```
+
+Administrador y gestor de operaciones reciben los tres permisos; consulta recibe sólo `mantenimiento_preventivo.ver`; gestor de propiedad y gestor financiero no reciben permisos de mantenimiento preventivo.
+
+Operación programada:
+
+```bash
+php artisan operaciones:generar-mantenimiento-preventivo \
+    --edificio=UUID \
+    --fecha=AAAA-MM-DD \
+    --limite=100 \
+    --dry-run
+```
+
+Todos los parámetros son opcionales. Sin `--fecha` se usa el día actual; `--limite` se acota entre 1 y 500. El scheduler ejecuta `operaciones:generar-mantenimiento-preventivo --limite=100` diariamente a las `02:00` en la zona horaria de la aplicación, mediante `withoutOverlapping()` y `onOneServer()`. Producción debe mantener activo `php artisan schedule:run` cada minuto y un cache compartido apto para locks cuando existan varios servidores.
+
 ## Organización
 
 ```text
@@ -103,11 +147,11 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 37 permisos y administración de miembros |
+| `administrador` | Los 40 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
-| `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería y operaciones |
+| `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas y mantenimiento preventivo |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones y mantenimiento preventivo |
 
 Permisos:
 
@@ -126,6 +170,7 @@ tesoreria.ver                  cuentas_tesoreria.gestionar       movimientos_tes
 movimientos_tesoreria.anular   conciliaciones.gestionar
 operaciones.ver                operaciones.gestionar             operaciones.cambiar_estado
 operaciones.asignar            operaciones.cancelar              operaciones.reabrir
+mantenimiento_preventivo.ver   mantenimiento_preventivo.gestionar mantenimiento_preventivo.programar
 ```
 
 Reglas de seguridad:
@@ -526,15 +571,18 @@ No existen rutas de eliminación para cuentas, movimientos o conciliaciones.
 
 ## Módulo Operaciones
 
-ETAPA 16 implementa `src/Operaciones` para incidencias, solicitudes y mantenimiento correctivo por edificio.
+ETAPAS 16 y 17 implementan `src/Operaciones` para incidencias, solicitudes, mantenimiento correctivo y programación preventiva por edificio.
 
 Tablas:
 
-- `ordenes_operativas`: datos centrales, ubicación, reportante congelado, proveedor/contrato opcionales, estado y trazabilidad.
+- `ordenes_operativas`: datos centrales, origen manual o preventivo, ubicación, reportante congelado, proveedor/contrato opcionales, estado y trazabilidad.
 - `asignaciones_orden_operativa`: intervalos históricos del responsable interno o proveedor, con una única fila vigente.
 - `evidencias_orden_operativa`: metadatos, SHA-256 y ruta privada de archivos inmutables.
-- `bitacora_orden_operativa`: eventos append-only con actor, fecha y detalle estructurado.
+- `bitacora_orden_operativa`: eventos append-only con actor usuario o sistema, fecha y detalle estructurado.
 - `consecutivos_orden_operativa`: contador anual global para números `OPR-AAAA-NNNNNN`.
+- `planes_mantenimiento_preventivo`: configuración, recurrencia anclada, ubicación, dependencias y cursor de cada plan.
+- `ocurrencias_mantenimiento_preventivo`: resultado inmutable de cada fecha programada y vínculo uno-a-uno con su orden.
+- `bitacora_plan_mantenimiento`: eventos append-only del plan con actor usuario o sistema.
 
 La aplicación vuelve a comprobar permiso y edificio dentro de cada transacción. Las FKs compuestas acotan órdenes, actores, reportantes, estructura, proveedores y contratos al edificio exacto. PostgreSQL bloquea transiciones inválidas, edición terminal, responsables duplicados o inactivos, cancelaciones con una asignación todavía abierta, nuevas asignaciones después de cancelar, mutación de historia y eliminación física. SQLite instala guards equivalentes para las pruebas automáticas.
 
@@ -556,9 +604,18 @@ PATCH  /edificios/{edificio}/operaciones/{orden}/reabrir
 POST   /edificios/{edificio}/operaciones/{orden}/actuaciones
 POST   /edificios/{edificio}/operaciones/{orden}/evidencias
 GET    /edificios/{edificio}/operaciones/{orden}/evidencias/{evidencia}/download
+GET    /mantenimiento-preventivo
+GET    /mantenimiento-preventivo/create
+POST   /edificios/{edificio}/mantenimiento-preventivo
+GET    /edificios/{edificio}/mantenimiento-preventivo/{plan}
+GET    /edificios/{edificio}/mantenimiento-preventivo/{plan}/edit
+PUT    /edificios/{edificio}/mantenimiento-preventivo/{plan}
+PATCH  /edificios/{edificio}/mantenimiento-preventivo/{plan}/estado
+POST   /edificios/{edificio}/mantenimiento-preventivo/{plan}/ocurrencias/{ocurrencia}/reintentar
+PATCH  /edificios/{edificio}/mantenimiento-preventivo/{plan}/ocurrencias/{ocurrencia}/omitir
 ```
 
-No existen rutas de eliminación para órdenes, asignaciones, actuaciones o evidencias.
+No existen rutas de eliminación para órdenes, asignaciones, actuaciones, evidencias, planes, ocurrencias o bitácoras.
 
 ## Módulos transitorios
 

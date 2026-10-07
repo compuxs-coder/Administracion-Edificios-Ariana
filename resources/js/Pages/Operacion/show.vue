@@ -11,6 +11,7 @@ import type {
   PrioridadOrdenOperativa,
   ProveedorOperacionOption,
   TipoEventoOrdenOperativa,
+  TipoOrdenOperativa,
   TipoResponsableOrdenOperativa
 } from '../../types'
 import { useBuildingPermissions } from '../../composables/useBuildingPermissions'
@@ -53,6 +54,7 @@ const stateColor = (value: EstadoOrdenOperativa): 'info' | 'warning' | 'primary'
   cancelada: 'error'
 })[value]
 const priorityLabels: Record<PrioridadOrdenOperativa, string> = { baja: 'Baja', media: 'Media', alta: 'Alta', critica: 'Crítica' }
+const typeLabels: Record<TipoOrdenOperativa, string> = { incidencia: 'Incidencia', solicitud: 'Solicitud', mantenimiento_preventivo: 'Mantenimiento preventivo' }
 const eventLabels: Record<TipoEventoOrdenOperativa, string> = {
   creacion: 'Orden creada',
   cambio_datos: 'Datos actualizados',
@@ -221,7 +223,7 @@ const downloadEvidence = (id: string) => {
         </div>
 
         <UCard>
-          <template #header><div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-sm text-muted">{{ orden.edificio || orden.edificioId }}</p><h1 class="mt-1 text-2xl font-semibold text-highlighted">{{ orden.titulo }}</h1><div class="mt-2 flex flex-wrap gap-2"><UBadge color="neutral" :label="orden.tipo === 'incidencia' ? 'Incidencia' : 'Solicitud'" variant="outline" /><UBadge color="neutral" :label="`Prioridad ${priorityLabels[orden.prioridad].toLowerCase()}`" variant="subtle" /></div></div><UBadge :color="stateColor(orden.estado)" :label="stateLabels[orden.estado]" size="lg" variant="subtle" /></div></template>
+          <template #header><div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-sm text-muted">{{ orden.edificio || orden.edificioId }}</p><h1 class="mt-1 text-2xl font-semibold text-highlighted">{{ orden.titulo }}</h1><div class="mt-2 flex flex-wrap gap-2"><UBadge color="neutral" :label="typeLabels[orden.tipo]" variant="outline" /><UBadge color="neutral" :label="`Prioridad ${priorityLabels[orden.prioridad].toLowerCase()}`" variant="subtle" /></div></div><UBadge :color="stateColor(orden.estado)" :label="stateLabels[orden.estado]" size="lg" variant="subtle" /></div></template>
           <p class="break-words whitespace-pre-line text-sm leading-6 text-muted">{{ orden.descripcion }}</p>
           <dl class="mt-6 grid gap-5 border-t border-default pt-5 sm:grid-cols-2 lg:grid-cols-4">
             <div><dt class="text-xs uppercase text-muted">Fecha objetivo</dt><dd class="mt-1">{{ orden.fechaObjetivo || 'Sin fecha' }}</dd></div>
@@ -230,6 +232,11 @@ const downloadEvidence = (id: string) => {
             <div><dt class="text-xs uppercase text-muted">Creada</dt><dd class="mt-1">{{ formatDate(orden.createdAt) }}</dd></div>
           </dl>
         </UCard>
+
+        <UAlert v-if="orden.planMantenimiento" color="info" icon="i-lucide-calendar-sync" variant="subtle" title="Orden generada automáticamente">
+          <template #description>Programada para {{ orden.planMantenimiento.fechaProgramada }} desde el plan {{ orden.planMantenimiento.planCodigo || 'preventivo' }}.</template>
+          <template #actions><UButton color="info" label="Ver plan" variant="outline" @click="router.visit(route('mantenimiento-preventivo.show', [orden.edificioId, orden.planMantenimiento!.planId]))" /></template>
+        </UAlert>
 
         <div class="grid gap-6 lg:grid-cols-2">
           <UCard><template #header><p class="font-semibold text-highlighted">Origen del reporte</p></template><div v-if="orden.reportanteSnapshot" class="space-y-1 text-sm"><p class="font-medium">{{ orden.reportanteSnapshot.nombre }}</p><p class="text-muted">{{ orden.reportanteSnapshot.tipoIdentificacion }} · {{ orden.reportanteSnapshot.identificacion }}</p><p v-if="orden.reportanteSnapshot.telefono" class="text-muted">{{ orden.reportanteSnapshot.telefono }}</p><p v-if="orden.reportanteSnapshot.correo" class="text-muted">{{ orden.reportanteSnapshot.correo }}</p></div><p v-else class="text-sm text-muted">Reporte registrado directamente por la administración.</p></UCard>

@@ -127,6 +127,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/operaciones'),
   hidden: !canAny('operaciones.ver')
 }, {
+  label: 'Mantenimiento preventivo',
+  icon: 'i-lucide-calendar-sync',
+  to: '/mantenimiento-preventivo',
+  onSelect: () => navigateTo('/mantenimiento-preventivo'),
+  hidden: !canAny('mantenimiento_preventivo.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

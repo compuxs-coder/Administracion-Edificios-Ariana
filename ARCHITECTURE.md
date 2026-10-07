@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, y `Operaciones` gestiona incidencias, solicitudes y mantenimiento correctivo. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, y `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -29,14 +29,14 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones` y `consulta`.
-3. Los 37 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería y operaciones. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes operativas y sólo recibe las lecturas auxiliares mínimas; `consulta` sólo dispone de lectura, incluida `operaciones.ver`.
+3. Los 40 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones y mantenimiento preventivo. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos y sólo recibe las lecturas auxiliares mínimas; `consulta` sólo dispone de lectura, incluidas `operaciones.ver` y `mantenimiento_preventivo.ver`.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
 8. Toda creación, invitación, aceptación, cambio de roles y revocación genera un evento inmutable. La base impide eliminar membresías y dejar un edificio sin administrador.
 9. Los controllers y Form Requests aplican autorización, mientras los repositorios vuelven a filtrar o validar el edificio. La visibilidad frontend es sólo una ayuda de interfaz y no sustituye estas defensas.
-10. Los procesos programados de generación de cargos pueden operar sin actor; ningún flujo HTTP utiliza ese bypass técnico.
+10. Los procesos programados de generación de cargos pueden operar sin actor. Las órdenes preventivas identifican explícitamente al actor `sistema`; ningún flujo HTTP puede utilizar ese origen técnico.
 
 ## Estructura física
 
@@ -233,7 +233,21 @@ ETAPA 16 incorpora el contexto `Operaciones` para incidencias, solicitudes y man
 11. No existe eliminación física de órdenes, asignaciones, evidencias o entradas de bitácora. Las transiciones críticas se ejecutan dentro de transacciones y la base protege aislamiento, estados e historia.
 12. Los permisos son `operaciones.ver`, `operaciones.gestionar`, `operaciones.cambiar_estado`, `operaciones.asignar`, `operaciones.cancelar` y `operaciones.reabrir`. `administrador` y `gestor_operaciones` reciben los seis; `consulta` recibe sólo lectura; `gestor_propiedad` y `gestor_finanzas` no reciben permisos de Operaciones.
 13. `gestor_operaciones` es independiente de `gestor_propiedad`. Puede consultar la estructura necesaria y acceder únicamente a opciones mínimas de residentes, miembros, proveedores y contratos requeridas por Operaciones, sin recibir por ello permisos generales de Propiedad, miembros o Gastos.
-14. Quedan fuera el autoservicio de propietarios o residentes, mantenimiento preventivo, recurrencias, scheduler, catálogo completo de activos, inventario y repuestos, reservas de áreas comunes, chat, notificaciones generales, SLA, escalamiento automático, presupuestos, cotizaciones, órdenes de compra, cargos a residentes, integración financiera y reportería de Gobierno.
+14. En ETAPA 16 quedaron fuera el autoservicio de propietarios o residentes, mantenimiento preventivo, recurrencias, scheduler, catálogo completo de activos, inventario y repuestos, reservas de áreas comunes, chat, notificaciones generales, SLA, escalamiento automático, presupuestos, cotizaciones, órdenes de compra, cargos a residentes, integración financiera y reportería de Gobierno. ETAPA 17 incorpora únicamente la programación preventiva descrita a continuación.
+
+### Mantenimiento preventivo
+
+ETAPA 17 amplía el mismo contexto `Operaciones`; no crea un contexto ni un catálogo de activos separados:
+
+1. Un plan pertenece a un edificio y usa un código normalizado en mayúsculas, único dentro de ese edificio. Conserva título, descripción, prioridad, una ubicación estructural o libre y, opcionalmente, proveedor y contrato coherentes con el edificio.
+2. La recurrencia es diaria, semanal, mensual o anual, con intervalo entre 1 y 99 y anticipación entre 0 y 365 días. El calendario se calcula siempre desde la fecha ancla y un número de secuencia para evitar deriva; los fines de mes no desbordan y los años bisiestos se recuperan cuando el ancla lo permite.
+3. Los planes nacen `inactivo`. Sólo se editan inactivos y su activación requiere una primera fecha no pasada. Pausar omite cualquier ocurrencia abierta, limpia el cursor y obliga a indicar una fecha nueva al reactivar; una pausa deliberada no genera recuperación histórica.
+4. Cada fecha programada produce como máximo una ocurrencia `pendiente`, `generada`, `bloqueada` u `omitida`. Una ocurrencia generada se vincula uno-a-uno con una orden `mantenimiento_preventivo`, de origen `programacion_preventiva`, creada por actor `sistema` y en estado `reportada` sin responsable automático.
+5. El proveedor o contrato se revalida al procesar. Si ya no es utilizable, la ocurrencia queda `bloqueada`, conserva el motivo y el cursor no avanza. Un usuario con permiso puede reintentarla después de corregir la dependencia u omitirla expresamente con motivo.
+6. La generación recupera vencimientos técnicos en orden mediante lotes limitados e idempotentes. El comando acepta edificio, fecha operativa, límite de 1 a 500 y previsualización sin escritura; el scheduler lo ejecuta cada día a las `02:00`, con exclusión mutua y un único servidor.
+7. Planes, ocurrencias y bitácoras no se eliminan. La bitácora append-only distingue actores `usuario` y `sistema`; la base protege forma, alcance, actores, vínculos, inmutabilidad y transiciones en PostgreSQL y SQLite.
+8. Los permisos son `mantenimiento_preventivo.ver`, `mantenimiento_preventivo.gestionar` y `mantenimiento_preventivo.programar`. `administrador` y `gestor_operaciones` reciben los tres; `consulta` recibe sólo lectura; los gestores de propiedad y finanzas no reciben ninguno.
+9. La programación no crea ni modifica proveedores, contratos, gastos, cuentas por pagar, desembolsos o movimientos de tesorería. También quedan fuera catálogo de activos, inventario, repuestos, asignación automática, SLA y notificaciones.
 
 ## Capacidades previstas
 
@@ -244,7 +258,7 @@ ETAPA 16 incorpora el contexto `Operaciones` para incidencias, solicitudes y man
 | Cuentas por cobrar | Conceptos, tarifas, lecturas, consumos, cálculos porcentuales, cargos, pagos, recibos, evidencias, saldo a favor y cartera implementados |
 | Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados |
 | Tesorería | Cuentas bancarias y cajas, movimientos manuales y conciliación de desembolsos implementados; extractos, importación y conciliación de ingresos fuera de alcance |
-| Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16 |
+| Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16; planes, recurrencias y órdenes preventivas implementados en ETAPA 17 |
 | Áreas comunes | Espacios, reglas y reservas |
 | Comunicación | Comunicados, documentos y notificaciones |
 | Gobierno | Reportes, trazabilidad y auditoría |

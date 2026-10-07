@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 37 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 40 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -32,6 +32,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Tesorería por edificio con cuentas bancarias o cajas, movimientos manuales y conciliación uno-a-uno de egresos contra desembolsos registrados.
 - Conciliaciones reversibles con historial inmutable, estado derivado y bloqueo de anulaciones mientras la relación permanezca vigente.
 - Órdenes operativas para incidencias y solicitudes, con flujo trazable, responsables históricos, evidencias privadas y bitácora inmutable.
+- Planes de mantenimiento preventivo con recurrencia anclada, ocurrencias auditables y generación programada de órdenes por actor sistema.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
@@ -46,6 +47,14 @@ La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHI
 La etapa incorpora el rol `gestor_operaciones` y permisos separados para consulta, gestión, cambio de estado, asignación, cancelación y reapertura. No incluye autoservicio de residentes, mantenimiento preventivo, reservas de áreas comunes, chat, SLA, escalamiento automático ni generación de documentos financieros.
 
 El módulo dispone de páginas Inertia para listado, creación, edición y detalle; rutas de transición, asignación, cancelación, reapertura, actuaciones y evidencias; y garantías equivalentes en PostgreSQL y SQLite para aislamiento, estados e historia.
+
+## ETAPA 17 implementada
+
+**Mantenimiento preventivo y programación recurrente** amplía `Operaciones` con planes por edificio, código normalizado único, ubicación, prioridad, proveedor y contrato opcionales, anticipación y recurrencia diaria, semanal, mensual o anual. Los planes nacen inactivos; su activación exige una primera fecha y su configuración sólo puede editarse mientras estén inactivos.
+
+Cada vencimiento crea una ocurrencia idempotente y una orden `mantenimiento_preventivo` en estado `reportada`, con origen `programacion_preventiva` y actor `sistema`. Una dependencia inválida bloquea la ocurrencia sin avanzar el calendario; puede reintentarse después de corregirla u omitirse con motivo. Pausar omite la ocurrencia abierta y reactivar inicia un calendario nuevo, sin recuperar pausas deliberadas.
+
+El comando `php artisan operaciones:generar-mantenimiento-preventivo` admite edificio, fecha operativa, límite de lote y `--dry-run`. El scheduler lo ejecuta diariamente a las `02:00` en la zona horaria de la aplicación, con exclusión mutua y ejecución en un solo servidor. ETAPA 17 no incorpora catálogo de activos, inventario, repuestos ni genera gastos, cuentas por pagar, desembolsos o movimientos de tesorería.
 
 ## Tecnologías
 
