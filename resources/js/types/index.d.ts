@@ -18,6 +18,7 @@ export interface Edificio {
   ruc: string | null
   direccion: string
   ciudad: string
+  timezone: string
   telefono: string | null
   correo: string | null
   responsable: string | null
@@ -31,12 +32,13 @@ export interface EdificioFormData {
   ruc: string
   direccion: string
   ciudad: string
+  timezone: string
   telefono: string
   correo: string
   responsable: string
 }
 
-export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'consulta'
+export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'gestor_areas_comunes' | 'consulta'
 
 export interface RolAccesoEdificio {
   codigo: RolEdificio
@@ -125,6 +127,7 @@ export interface Departamento {
   id: string
   edificioId: string
   edificio: string
+  edificioTimezone: string
   torreId: string
   torre: string
   pisoId: string
@@ -1272,4 +1275,200 @@ export interface PlanMantenimientoPreventivoResumen {
   estado: EstadoPlanMantenimientoPreventivo
   proximaFechaProgramada: string | null
   ocurrenciasBloqueadas: number
+}
+
+export type EstadoEspacioComun = 'activo' | 'inactivo'
+export type EstadoReservaAreaComun = 'pendiente' | 'confirmada' | 'rechazada' | 'cancelada'
+export type TipoEventoAreaComun = 'espacio_creado' | 'espacio_actualizado' | 'espacio_activado' | 'espacio_inactivado' | 'regla_creada' | 'reserva_creada' | 'reserva_aprobada' | 'reserva_rechazada' | 'reserva_cancelada'
+
+export interface EdificioAreaComunOption {
+  id: string
+  nombre: string
+  estado: EstadoEdificio
+  timezone: string
+}
+
+export interface TorreAreaComunOption {
+  id: string
+  edificio_id: string
+  codigo: string
+  nombre: string
+}
+
+export interface PisoAreaComunOption {
+  id: string
+  edificio_id: string
+  numero: string
+  nombre: string | null
+}
+
+export interface EspacioComunFormData {
+  edificio_id: string
+  codigo: string
+  nombre: string
+  descripcion: string
+  capacidad: number
+  torre_id: string
+  piso_id: string
+  ubicacion_detalle: string
+  updated_at?: string
+}
+
+export interface HorarioReglaAreaComunFormData {
+  dia_semana: number
+  hora_inicio: string
+  hora_fin: string
+}
+
+export interface ReglaAreaComunFormData {
+  vigente_desde: string
+  requiere_aprobacion: boolean
+  duracion_minima_minutos: number
+  duracion_maxima_minutos: number
+  antelacion_minima_minutos: number
+  antelacion_maxima_dias: number
+  buffer_antes_minutos: number
+  buffer_despues_minutos: number
+  aforo_maximo: number
+  reglamento: string
+  horarios: HorarioReglaAreaComunFormData[]
+}
+
+export interface HorarioReglaAreaComun {
+  id: string
+  diaSemana: number
+  horaInicio: string
+  horaFin: string
+}
+
+export interface ReglaAreaComunSnapshot {
+  vigenteDesde: string
+  timezone: string
+  requiereAprobacion: boolean
+  duracionMinimaMinutos: number
+  duracionMaximaMinutos: number
+  antelacionMinimaMinutos: number
+  antelacionMaximaDias: number
+  bufferAntesMinutos: number
+  bufferDespuesMinutos: number
+  aforoMaximo: number
+  reglamento: string | null
+}
+
+export interface ReglaAreaComun extends ReglaAreaComunSnapshot {
+  id: string
+  vigenteHasta: string | null
+  horarios: HorarioReglaAreaComun[]
+  createdAt: string | null
+}
+
+export interface OcupacionAreaComunOption {
+  id: string
+  edificioId: string
+  departamentoId: string
+  residenteId: string
+  nombre: string
+  tipoIdentificacion: string
+  identificacion: string
+  tipoOcupacion: TipoOcupacion
+  departamentoCodigo: string
+  departamentoNombre: string
+  fechaInicio: string
+  fechaFin: string | null
+}
+
+export interface ReservaAreaComunFormData {
+  edificio_id: string
+  espacio_comun_id: string
+  ocupacion_id: string
+  inicio: string
+  fin: string
+  cantidad_asistentes: number
+  observaciones: string
+}
+
+export interface ReservaAreaComun {
+  id: string
+  edificioId: string
+  espacioComunId: string
+  espacioCodigo: string | null
+  espacioNombre: string | null
+  reglaId: string
+  ocupacionId: string
+  departamentoId: string
+  residenteId: string
+  reservante: OcupacionAreaComunOption
+  reglaSnapshot: ReglaAreaComunSnapshot
+  inicioLocal: string
+  finLocal: string
+  inicioAt: string
+  finAt: string
+  cantidadAsistentes: number
+  estado: EstadoReservaAreaComun
+  observaciones: string | null
+  motivoResolucion: string | null
+  resueltaAt: string | null
+  createdAt: string | null
+  puedeAprobar: boolean
+  puedeCancelar: boolean
+}
+
+export interface BitacoraAreaComun {
+  id: string
+  tipo: TipoEventoAreaComun
+  actorNombre: string
+  detalle: Record<string, unknown> | null
+  createdAt: string | null
+}
+
+export interface EspacioComun {
+  id: string
+  edificioId: string
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  capacidad: number
+  torreId: string | null
+  pisoId: string | null
+  ubicacionDetalle: string | null
+  estado: EstadoEspacioComun
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface EspacioComunResumen extends EspacioComun {
+  puedeVerReservas: boolean
+  reservasFuturas: number | null
+}
+
+export interface EspacioComunDetalle extends EspacioComun {
+  edificio: string
+  timezone: string
+  puedeVerReservas: boolean
+  ubicacion: {
+    tipo: 'torre' | 'piso' | null
+    id: string | null
+    etiqueta: string | null
+    detalle: string | null
+  }
+  reglas: ReglaAreaComun[]
+  reservas: ReservaAreaComun[]
+  bitacora: BitacoraAreaComun[]
+}
+
+export interface ReservaAreaComunDetalle extends ReservaAreaComun {
+  edificio: string
+  timezone: string
+  regla: ReglaAreaComun
+  bitacora: BitacoraAreaComun[]
+}
+
+export interface EspaciosComunesPaginados {
+  data: EspacioComunResumen[]
+  meta: PaginationMeta
+}
+
+export interface ReservasAreasComunesPaginadas {
+  data: ReservaAreaComun[]
+  meta: PaginationMeta
 }

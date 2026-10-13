@@ -5,7 +5,7 @@ import { route } from 'ziggy-js'
 import EdificioForm from '../../components/edificios/EdificioForm.vue'
 import type { Edificio, EdificioFormData } from '../../types'
 
-const props = defineProps<{ edificio: Edificio }>()
+const props = defineProps<{ edificio: Edificio, zonasHorarias: string[] }>()
 const page = usePage()
 const isLoading = ref(false)
 
@@ -14,6 +14,7 @@ const initial = computed<EdificioFormData>(() => ({
   ruc: props.edificio.ruc ?? '',
   direccion: props.edificio.direccion,
   ciudad: props.edificio.ciudad,
+  timezone: props.edificio.timezone,
   telefono: props.edificio.telefono ?? '',
   correo: props.edificio.correo ?? '',
   responsable: props.edificio.responsable ?? ''
@@ -58,6 +59,7 @@ const handleSubmit = (data: EdificioFormData) => {
         <UCard>
           <EdificioForm
             :initial="initial"
+            :timezone-options="zonasHorarias"
             :errors="errors"
             :loading="isLoading"
             submit-label="Actualizar edificio"

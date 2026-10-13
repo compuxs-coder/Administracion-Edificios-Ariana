@@ -5,6 +5,7 @@ import { route } from 'ziggy-js'
 import EdificioForm from '../../components/edificios/EdificioForm.vue'
 import type { EdificioFormData } from '../../types'
 
+defineProps<{ zonasHorarias: string[] }>()
 const page = usePage()
 const isLoading = ref(false)
 
@@ -48,6 +49,7 @@ const handleSubmit = (data: EdificioFormData) => {
 
         <UCard>
           <EdificioForm
+            :timezone-options="zonasHorarias"
             :errors="errors"
             :loading="isLoading"
             @cancel="router.visit(route('edificios.index'))"

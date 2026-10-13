@@ -403,6 +403,7 @@ final class EloquentDepartamentoRepository implements DepartamentoRepositoryInte
             'id' => $model->id,
             'edificioId' => $model->edificio_id,
             'edificio' => $model->edificio->nombre,
+            'edificioTimezone' => $model->edificio->timezone,
             'torreId' => $model->piso->torre_id,
             'torre' => $model->piso->torre->nombre,
             'pisoId' => $model->piso_id,

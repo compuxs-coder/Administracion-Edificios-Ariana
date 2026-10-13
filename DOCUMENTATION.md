@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas y mantenimiento preventivo son módulos funcionales.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas, mantenimiento preventivo y áreas comunes con reservas son módulos funcionales.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -99,6 +99,35 @@ php artisan operaciones:generar-mantenimiento-preventivo \
 
 Todos los parámetros son opcionales. Sin `--fecha` se usa el día actual; `--limite` se acota entre 1 y 500. El scheduler ejecuta `operaciones:generar-mantenimiento-preventivo --limite=100` diariamente a las `02:00` en la zona horaria de la aplicación, mediante `withoutOverlapping()` y `onOneServer()`. Producción debe mantener activo `php artisan schedule:run` cada minuto y un cache compartido apto para locks cuando existan varios servidores.
 
+## ETAPA 18: Áreas comunes y reservas
+
+ETAPA 18 implementa `AreasComunes` para espacios compartidos, condiciones de uso versionadas y reservas administrativas por edificio.
+
+Reglas aprobadas:
+
+- El espacio tiene código normalizado único por edificio, capacidad, ubicación física o libre y estado activo/inactivo. No se elimina físicamente.
+- Las reglas conservan vigencia histórica y no se sobrescriben. Definen aprobación, duración, antelación, buffers, aforo, reglamento y horarios locales no solapados; una sustitución de la regla vigente comienza como mínimo al día siguiente.
+- Sólo se registra y aprueba una reserva para una ocupación vigente del edificio en la fecha solicitada. Una ocupación no puede finalizarse antes de reservas pendientes o confirmadas; las fechas administrativas usan el día local del edificio. Inicio y fin deben pertenecer al mismo día local y cumplir la regla y capacidad física.
+- Una solicitud queda `pendiente` si requiere aprobación o `confirmada` en caso contrario. Desde pendiente puede confirmarse, rechazarse o cancelarse; desde confirmada sólo puede cancelarse antes del inicio.
+- Confirmar vuelve a comprobar el intervalo exclusivo, incluidos buffers. Los intervalos son semiabiertos y el bloqueo del espacio serializa intentos concurrentes.
+- El edificio usa una zona IANA del catálogo persistido `zonas_horarias` y la regla congela esa zona. La reserva conserva un snapshot de regla y reservante; guarda instantes UTC y presenta y filtra fechas en la zona histórica. La antelación máxima se calcula en días del calendario local.
+- Las horas locales inexistentes o repetidas y los intervalos que atraviesan cambios DST se rechazan. La zona del edificio queda inmutable después de registrar reglas.
+- Espacios, reglas, horarios, reservas y bitácora están protegidos contra eliminación; los datos históricos y eventos son inmutables.
+- No se crean cobros, depósitos, multas, cargos ni movimientos financieros y no existe autoservicio de residentes.
+
+RBAC:
+
+```text
+areas_comunes.ver
+areas_comunes.gestionar
+reservas_areas_comunes.ver
+reservas_areas_comunes.registrar
+reservas_areas_comunes.aprobar
+reservas_areas_comunes.cancelar
+```
+
+Administrador y `gestor_areas_comunes` reciben los seis permisos; consulta recibe únicamente los dos permisos de lectura. Los gestores de propiedad, finanzas y operaciones no los reciben por defecto. La consulta del espacio no expone agenda, snapshots de reservantes ni eventos de reserva si falta `reservas_areas_comunes.ver`.
+
 ## Organización
 
 ```text
@@ -147,11 +176,12 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 40 permisos y administración de miembros |
+| `administrador` | Los 46 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
 | `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas y mantenimiento preventivo |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones y mantenimiento preventivo |
+| `gestor_areas_comunes` | Lectura de edificio y estructura, y gestión completa de espacios y reservas |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones, mantenimiento preventivo y áreas comunes |
 
 Permisos:
 
@@ -171,6 +201,8 @@ movimientos_tesoreria.anular   conciliaciones.gestionar
 operaciones.ver                operaciones.gestionar             operaciones.cambiar_estado
 operaciones.asignar            operaciones.cancelar              operaciones.reabrir
 mantenimiento_preventivo.ver   mantenimiento_preventivo.gestionar mantenimiento_preventivo.programar
+areas_comunes.ver              areas_comunes.gestionar             reservas_areas_comunes.ver
+reservas_areas_comunes.registrar reservas_areas_comunes.aprobar    reservas_areas_comunes.cancelar
 ```
 
 Reglas de seguridad:
@@ -217,6 +249,7 @@ Durante la transición:
 - Proveedores, asociaciones comerciales, contratos, gastos, cuentas por pagar, desembolsos, sus aplicaciones y consecutivos residen en `administracion_edificios`.
 - Cuentas de tesorería, movimientos y conciliaciones de desembolsos residen en `administracion_edificios`.
 - Órdenes operativas, responsables históricos, evidencias, bitácora y consecutivos residen en `administracion_edificios`.
+- Espacios comunes, reglas, horarios, reservas, catálogo de zonas IANA y bitácora de áreas comunes residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -616,6 +649,43 @@ PATCH  /edificios/{edificio}/mantenimiento-preventivo/{plan}/ocurrencias/{ocurre
 ```
 
 No existen rutas de eliminación para órdenes, asignaciones, actuaciones, evidencias, planes, ocurrencias o bitácoras.
+
+## Módulo Áreas comunes
+
+ETAPA 18 implementa `src/AreasComunes` con acciones, requests, repositorios de lectura auxiliares y repositorio transaccional propio. Sólo consume estructura física y ocupaciones mediante contratos de lectura mínimos.
+
+Tablas:
+
+- `espacios_comunes`: catálogo por edificio, ubicación, capacidad, estado y auditoría.
+- `reglas_espacio_comun`: versiones temporales inmutables y zona IANA congelada.
+- `horarios_regla_espacio_comun`: intervalos locales habilitados por día de semana.
+- `reservas_espacio_comun`: reservante y regla en snapshots, instantes UTC, buffers, estado y resolución.
+- `bitacora_areas_comunes`: eventos append-only de espacios, reglas y reservas.
+- `zonas_horarias`: catálogo IANA autoritativo referenciado por edificios y reglas; sus opciones se sirven desde base de datos y una migración evolutiva conserva la intersección soportada por PHP y PostgreSQL.
+
+PostgreSQL y SQLite validan forma, vigencias, horarios, aforo, snapshots, estados, transiciones e inmutabilidad. PostgreSQL exige que la zona de cada regla coincida con su edificio y protege la correspondencia entre reserva y ocupación. La confirmación bloquea la fila del espacio antes de buscar conflictos y cada inserción de horario bloquea su regla, por lo que los intentos concurrentes se serializan. Los listados convierten los límites de fecha local de cada edificio a UTC; la agenda sólo incluye reservas futuras pendientes o confirmadas y sólo se entrega con el permiso específico de consulta de reservas.
+
+Rutas principales:
+
+```text
+GET    /areas-comunes
+GET    /areas-comunes/create
+POST   /edificios/{edificio}/areas-comunes
+GET    /edificios/{edificio}/areas-comunes/{espacio}
+GET    /edificios/{edificio}/areas-comunes/{espacio}/edit
+PUT    /edificios/{edificio}/areas-comunes/{espacio}
+PATCH  /edificios/{edificio}/areas-comunes/{espacio}/estado
+POST   /edificios/{edificio}/areas-comunes/{espacio}/reglas
+GET    /reservas-areas-comunes
+GET    /reservas-areas-comunes/create
+POST   /edificios/{edificio}/areas-comunes/{espacio}/reservas
+GET    /edificios/{edificio}/reservas-areas-comunes/{reserva}
+PATCH  /edificios/{edificio}/reservas-areas-comunes/{reserva}/aprobar
+PATCH  /edificios/{edificio}/reservas-areas-comunes/{reserva}/rechazar
+PATCH  /edificios/{edificio}/reservas-areas-comunes/{reserva}/cancelar
+```
+
+No existen rutas de eliminación para espacios, reglas, horarios, reservas o entradas de bitácora.
 
 ## Módulos transitorios
 

@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 40 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 46 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -33,10 +33,12 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Conciliaciones reversibles con historial inmutable, estado derivado y bloqueo de anulaciones mientras la relación permanezca vigente.
 - Órdenes operativas para incidencias y solicitudes, con flujo trazable, responsables históricos, evidencias privadas y bitácora inmutable.
 - Planes de mantenimiento preventivo con recurrencia anclada, ocurrencias auditables y generación programada de órdenes por actor sistema.
+- Áreas comunes por edificio con reglas versionadas, horarios, aforo, buffers, aprobación configurable y reservas administrativas para ocupantes vigentes.
+- Fechas de reservas interpretadas en la zona IANA congelada por regla, instantes almacenados en UTC y rechazo de horas locales ambiguas o inexistentes por cambios DST.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería y Operaciones dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones y Áreas comunes dentro del esquema PostgreSQL privado.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
 
@@ -55,6 +57,14 @@ El módulo dispone de páginas Inertia para listado, creación, edición y detal
 Cada vencimiento crea una ocurrencia idempotente y una orden `mantenimiento_preventivo` en estado `reportada`, con origen `programacion_preventiva` y actor `sistema`. Una dependencia inválida bloquea la ocurrencia sin avanzar el calendario; puede reintentarse después de corregirla u omitirse con motivo. Pausar omite la ocurrencia abierta y reactivar inicia un calendario nuevo, sin recuperar pausas deliberadas.
 
 El comando `php artisan operaciones:generar-mantenimiento-preventivo` admite edificio, fecha operativa, límite de lote y `--dry-run`. El scheduler lo ejecuta diariamente a las `02:00` en la zona horaria de la aplicación, con exclusión mutua y ejecución en un solo servidor. ETAPA 17 no incorpora catálogo de activos, inventario, repuestos ni genera gastos, cuentas por pagar, desembolsos o movimientos de tesorería.
+
+## ETAPA 18 implementada
+
+**Áreas comunes y reservas** incorpora el contexto `AreasComunes` para administrar espacios compartidos, reglas históricas, horarios y reservas por edificio. Una reserva se registra para un residente con ocupación vigente, valida horario, duración, antelación, aforo y buffers, y queda confirmada o pendiente según la regla aplicable. La aprobación revalida la ocupación y su finalización queda bloqueada mientras existan reservas vigentes posteriores.
+
+Cada edificio usa una zona IANA. La zona queda congelada en la regla y en el snapshot de la reserva, los instantes se almacenan en UTC, los filtros respetan el día local y se rechazan horas inexistentes o repetidas por cambios DST. Las confirmaciones se serializan por espacio para impedir solapamientos concurrentes y la bitácora es append-only.
+
+La etapa añade el rol `gestor_areas_comunes` y seis permisos específicos. No incluye autoservicio de residentes, cobros, cargos, notificaciones ni integración financiera.
 
 ## Tecnologías
 

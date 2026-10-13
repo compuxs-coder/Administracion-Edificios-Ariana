@@ -44,4 +44,10 @@ enum PermisoEdificio: string
     case MANTENIMIENTO_PREVENTIVO_VER = 'mantenimiento_preventivo.ver';
     case MANTENIMIENTO_PREVENTIVO_GESTIONAR = 'mantenimiento_preventivo.gestionar';
     case MANTENIMIENTO_PREVENTIVO_PROGRAMAR = 'mantenimiento_preventivo.programar';
+    case AREAS_COMUNES_VER = 'areas_comunes.ver';
+    case AREAS_COMUNES_GESTIONAR = 'areas_comunes.gestionar';
+    case RESERVAS_AREAS_COMUNES_VER = 'reservas_areas_comunes.ver';
+    case RESERVAS_AREAS_COMUNES_REGISTRAR = 'reservas_areas_comunes.registrar';
+    case RESERVAS_AREAS_COMUNES_APROBAR = 'reservas_areas_comunes.aprobar';
+    case RESERVAS_AREAS_COMUNES_CANCELAR = 'reservas_areas_comunes.cancelar';
 }

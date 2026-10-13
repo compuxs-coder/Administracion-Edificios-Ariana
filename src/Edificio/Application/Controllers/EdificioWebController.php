@@ -5,6 +5,7 @@ namespace Src\Edificio\Application\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -61,7 +62,9 @@ final class EdificioWebController extends Controller
     {
         Gate::authorize('create', EdificioEloquentModel::class);
 
-        return Inertia::render('Edificio/create');
+        return Inertia::render('Edificio/create', [
+            'zonasHorarias' => $this->timezoneOptions(),
+        ]);
     }
 
     public function store(StoreEdificioRequest $request): RedirectResponse
@@ -91,6 +94,7 @@ final class EdificioWebController extends Controller
 
         return Inertia::render('Edificio/edit', [
             'edificio' => $this->getEdificio->execute($edificio->id)->toArray(),
+            'zonasHorarias' => $this->timezoneOptions(),
         ]);
     }
 
@@ -120,5 +124,11 @@ final class EdificioWebController extends Controller
                     ? 'Edificio activado exitosamente.'
                     : 'Edificio inactivado exitosamente.',
             );
+    }
+
+    /** @return list<string> */
+    private function timezoneOptions(): array
+    {
+        return DB::table('zonas_horarias')->orderBy('nombre')->pluck('nombre')->all();
     }
 }

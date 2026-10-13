@@ -133,6 +133,18 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/mantenimiento-preventivo'),
   hidden: !canAny('mantenimiento_preventivo.ver')
 }, {
+  label: 'Áreas comunes',
+  icon: 'i-lucide-warehouse',
+  to: '/areas-comunes',
+  onSelect: () => navigateTo('/areas-comunes'),
+  hidden: !canAny('areas_comunes.ver')
+}, {
+  label: 'Reservas',
+  icon: 'i-lucide-calendar-check-2',
+  to: '/reservas-areas-comunes',
+  onSelect: () => navigateTo('/reservas-areas-comunes'),
+  hidden: !canAny('reservas_areas_comunes.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

@@ -13,6 +13,7 @@ final class Edificio
         private ?string $ruc,
         private string $direccion,
         private string $ciudad,
+        private string $timezone,
         private ?string $telefono,
         private ?string $correo,
         private ?string $responsable,
@@ -28,6 +29,7 @@ final class Edificio
         $this->ruc = $data['ruc'] ?? null;
         $this->direccion = $data['direccion'];
         $this->ciudad = $data['ciudad'];
+        $this->timezone = $data['timezone'] ?? $this->timezone;
         $this->telefono = $data['telefono'] ?? null;
         $this->correo = $data['correo'] ?? null;
         $this->responsable = $data['responsable'] ?? null;
@@ -63,6 +65,11 @@ final class Edificio
     public function ciudad(): string
     {
         return $this->ciudad;
+    }
+
+    public function timezone(): string
+    {
+        return $this->timezone;
     }
 
     public function telefono(): ?string
@@ -104,6 +111,7 @@ final class Edificio
             'ruc' => $this->ruc,
             'direccion' => $this->direccion,
             'ciudad' => $this->ciudad,
+            'timezone' => $this->timezone,
             'telefono' => $this->telefono,
             'correo' => $this->correo,
             'responsable' => $this->responsable,

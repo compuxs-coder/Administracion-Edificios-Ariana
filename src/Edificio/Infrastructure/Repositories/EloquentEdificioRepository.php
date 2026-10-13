@@ -85,7 +85,18 @@ final class EloquentEdificioRepository implements EdificioRepositoryInterface
     public function save(Edificio $edificio): Edificio
     {
         return DB::transaction(function () use ($edificio): Edificio {
-            EdificioEloquentModel::query()->whereKey($edificio->id())->lockForUpdate()->first();
+            $current = EdificioEloquentModel::query()->whereKey($edificio->id())->lockForUpdate()->firstOrFail();
+
+            if ($current->timezone !== $edificio->timezone()) {
+                $rules = DB::connection()->getDriverName() === 'pgsql'
+                    ? config('database.application_schema').'.reglas_espacio_comun'
+                    : 'reglas_espacio_comun';
+                if (DB::getSchemaBuilder()->hasTable($rules) && DB::table($rules)->where('edificio_id', $edificio->id())->exists()) {
+                    throw ValidationException::withMessages([
+                        'timezone' => 'La zona horaria no puede cambiar después de registrar reglas de áreas comunes.',
+                    ]);
+                }
+            }
 
             if ($edificio->estado() === EstadoEdificio::INACTIVO
                 && DepartamentoResidenteEloquentModel::query()

@@ -430,6 +430,45 @@ final class ResidentesWebTest extends TestCase
         ]);
     }
 
+    public function test_occupation_dates_use_the_building_local_day_at_utc_boundaries(): void
+    {
+        Carbon::setTestNow('2026-09-01 02:00:00 UTC');
+        [$user, $edificio, $departamento] = $this->buildingFixture();
+        $residente = $this->makeResident($edificio, '1716900001');
+
+        $this->actingAs($user)->post(route('departamentos.residentes.assign', [$edificio, $departamento]), [
+            'residente_id' => $residente->id,
+            'tipo_ocupacion' => 'arrendatario',
+            'fecha_inicio' => '2026-09-01',
+        ])->assertSessionHasErrors(['fechaInicio']);
+
+        $this->assignResident($user, $edificio, $departamento, $residente, 'arrendatario', '2026-08-30');
+        $occupation = DepartamentoResidenteEloquentModel::query()->sole();
+        $this->actingAs($user)->patch(route('departamentos.residentes.finalize', [$edificio, $departamento, $occupation]), [
+            'fecha_fin' => '2026-09-01',
+        ])->assertSessionHasErrors(['fechaFin']);
+        $this->assertSame('activa', $occupation->refresh()->estado->value);
+
+        $this->actingAs($user)->get(route('departamentos.show', [$edificio, $departamento]))
+            ->assertInertia(fn (Assert $page) => $page->where('departamento.edificioTimezone', 'America/Guayaquil'));
+
+        Carbon::setTestNow('2026-09-01 23:00:00 UTC');
+        [$positiveOffsetUser, $positiveOffsetBuilding, $positiveOffsetDepartment] = $this->buildingFixture();
+        $positiveOffsetBuilding->update(['timezone' => 'Pacific/Kiritimati']);
+        $positiveOffsetResident = $this->makeResident($positiveOffsetBuilding, '1716900002');
+        $this->actingAs($positiveOffsetUser)->post(route('departamentos.residentes.assign', [$positiveOffsetBuilding, $positiveOffsetDepartment]), [
+            'residente_id' => $positiveOffsetResident->id,
+            'tipo_ocupacion' => 'arrendatario',
+            'fecha_inicio' => '2026-09-01',
+        ])->assertSessionHasNoErrors();
+        $positiveOffsetOccupation = DepartamentoResidenteEloquentModel::query()
+            ->where('edificio_id', $positiveOffsetBuilding->id)->sole();
+        $this->actingAs($positiveOffsetUser)->patch(route('departamentos.residentes.finalize', [$positiveOffsetBuilding, $positiveOffsetDepartment, $positiveOffsetOccupation]), [
+            'fecha_fin' => '2026-09-02',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('finalizada', $positiveOffsetOccupation->refresh()->estado->value);
+    }
+
     public function test_http_rejects_future_dates_and_inactive_entities_and_blocks_inactivation_with_active_occupancy(): void
     {
         [$user, $edificio, $departamento] = $this->buildingFixture();

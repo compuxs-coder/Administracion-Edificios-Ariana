@@ -20,16 +20,21 @@ const props = defineProps<{
 const { can } = useBuildingPermissions()
 const canManageStructure = computed(() => can('estructura.gestionar', props.departamento.edificioId))
 const canManageProperty = computed(() => can('propiedad.gestionar', props.departamento.edificioId))
-const localDate = (date: Date) => [
-  date.getFullYear(),
-  String(date.getMonth() + 1).padStart(2, '0'),
-  String(date.getDate()).padStart(2, '0')
-].join('-')
+const localDate = (date: Date, timezone: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? ''
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
 const dayAfter = (date: string) => {
   const [year, month, day] = date.split('-').map(Number)
-  return localDate(new Date(year, month - 1, day + 1))
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)
 }
-const today = localDate(new Date())
+const today = localDate(new Date(), props.departamento.edificioTimezone)
 const assignOpen = ref(false)
 const finalizeOpen = ref(false)
 const transferOpen = ref(false)

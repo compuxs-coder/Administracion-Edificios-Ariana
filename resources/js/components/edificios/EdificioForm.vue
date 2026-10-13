@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import type { EdificioFormData } from '../../types'
 
 const props = withDefaults(defineProps<{
   initial?: Partial<EdificioFormData>
+  timezoneOptions: string[]
   errors?: Record<string, string>
   loading?: boolean
   submitLabel?: string
@@ -24,9 +25,27 @@ const state = reactive<EdificioFormData>({
   ruc: props.initial.ruc ?? '',
   direccion: props.initial.direccion ?? '',
   ciudad: props.initial.ciudad ?? '',
+  timezone: props.initial.timezone ?? 'America/Guayaquil',
   telefono: props.initial.telefono ?? '',
   correo: props.initial.correo ?? '',
   responsable: props.initial.responsable ?? ''
+})
+
+const commonTimezoneItems = [
+  { label: 'Guayaquil (America/Guayaquil)', value: 'America/Guayaquil' },
+  { label: 'Bogotá (America/Bogota)', value: 'America/Bogota' },
+  { label: 'Lima (America/Lima)', value: 'America/Lima' },
+  { label: 'Nueva York (America/New_York)', value: 'America/New_York' },
+  { label: 'Ciudad de México (America/Mexico_City)', value: 'America/Mexico_City' },
+  { label: 'Madrid (Europe/Madrid)', value: 'Europe/Madrid' },
+  { label: 'UTC', value: 'UTC' }
+]
+const timezoneItems = computed(() => {
+  const commonNames = new Set(commonTimezoneItems.map(item => item.value))
+  const common = commonTimezoneItems.filter(item => props.timezoneOptions.includes(item.value))
+  const additional = props.timezoneOptions.filter(name => !commonNames.has(name)).map(name => ({ label: name, value: name }))
+  const items = [...common, ...additional]
+  return items.some(item => item.value === state.timezone) ? items : [{ label: state.timezone, value: state.timezone }, ...items]
 })
 
 const handleSubmit = () => {
@@ -95,6 +114,26 @@ const handleSubmit = () => {
           class="w-full"
           icon="i-lucide-map"
           placeholder="Ciudad"
+          required
+          size="xl"
+        />
+      </UFormField>
+
+      <UFormField
+        label="Zona horaria"
+        name="timezone"
+        required
+        hint="Se aplicará a reservas y horarios del edificio"
+        :error="errors.timezone"
+      >
+        <USelectMenu
+          v-model="state.timezone"
+          class="w-full"
+          icon="i-lucide-clock-3"
+          :items="timezoneItems"
+          value-key="value"
+          label-key="label"
+          placeholder="Buscar zona horaria"
           required
           size="xl"
         />

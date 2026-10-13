@@ -1,0 +1,13 @@
+<?php
+
+namespace Src\AreasComunes\Infrastructure\Models\Concerns;
+
+trait UsesApplicationSchema
+{
+    protected function qualifiedTable(string $table): string
+    {
+        return $this->getConnection()->getDriverName() === 'pgsql'
+            ? config('database.application_schema').'.'.$table
+            : $table;
+    }
+}

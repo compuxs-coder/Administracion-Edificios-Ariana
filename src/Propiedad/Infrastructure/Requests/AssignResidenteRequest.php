@@ -2,9 +2,10 @@
 
 namespace Src\Propiedad\Infrastructure\Requests;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
-use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Illuminate\Validation\Rule;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
 use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
 use Src\Propiedad\Domain\Enums\TipoOcupacion;
 
@@ -21,10 +22,13 @@ final class AssignResidenteRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $edificio = $this->route('edificio');
+        $timezone = $edificio instanceof EdificioEloquentModel ? $edificio->timezone : (string) config('app.timezone');
+
         return [
             'residente_id' => ['required', 'uuid'],
             'tipo_ocupacion' => ['required', Rule::enum(TipoOcupacion::class)],
-            'fecha_inicio' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'fecha_inicio' => ['required', Rule::date()->format('Y-m-d')->beforeOrEqual(CarbonImmutable::now($timezone)->format('Y-m-d'))],
             'observaciones' => ['nullable', 'string', 'max:2000'],
         ];
     }

@@ -22,6 +22,7 @@ final class EdificioEloquentModel extends Model
         'ruc',
         'direccion',
         'ciudad',
+        'timezone',
         'telefono',
         'correo',
         'responsable',

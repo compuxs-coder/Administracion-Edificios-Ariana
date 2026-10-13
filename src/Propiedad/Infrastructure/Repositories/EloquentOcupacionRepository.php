@@ -52,7 +52,7 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
     public function assign(string $userId, string $edificioId, string $departamentoId, array $data): void
     {
         DB::transaction(function () use ($userId, $edificioId, $departamentoId, $data): void {
-            $this->authorizedEdificio($userId, $edificioId, true, true);
+            $building = $this->authorizedEdificio($userId, $edificioId, true, true);
             $departamento = DepartamentoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->where('estado', EstadoEstructura::ACTIVO->value)
@@ -78,8 +78,8 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
                 ]);
             }
 
-            $fechaInicio = CarbonImmutable::parse($data['fecha_inicio'])->startOfDay();
-            if ($fechaInicio->isFuture()) {
+            $fechaInicio = CarbonImmutable::parse($data['fecha_inicio'], $building->timezone)->startOfDay();
+            if ($data['fecha_inicio'] > CarbonImmutable::now($building->timezone)->format('Y-m-d')) {
                 throw ValidationException::withMessages(['fecha_inicio' => 'La fecha de inicio no puede ser futura.']);
             }
 
@@ -122,7 +122,7 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
         array $data,
     ): void {
         DB::transaction(function () use ($userId, $edificioId, $departamentoId, $ocupacionId, $data): void {
-            $this->authorizedEdificio($userId, $edificioId, true);
+            $building = $this->authorizedEdificio($userId, $edificioId, true);
             DepartamentoEloquentModel::query()
                 ->where('edificio_id', $edificioId)
                 ->lockForUpdate()
@@ -133,14 +133,25 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
                 ->where('estado', EstadoOcupacion::ACTIVA->value)
                 ->lockForUpdate()
                 ->findOrFail($ocupacionId);
-            $fechaFin = CarbonImmutable::parse($data['fecha_fin'])->startOfDay();
+            $fechaFin = CarbonImmutable::parse($data['fecha_fin'], $building->timezone)->startOfDay();
 
-            if ($fechaFin->isFuture()) {
+            if ($data['fecha_fin'] > CarbonImmutable::now($building->timezone)->format('Y-m-d')) {
                 throw ValidationException::withMessages(['fecha_fin' => 'La fecha final no puede ser futura.']);
             }
-            if ($fechaFin->lessThanOrEqualTo($ocupacion->fecha_inicio)) {
+            if ($data['fecha_fin'] <= $ocupacion->fecha_inicio->format('Y-m-d')) {
                 throw ValidationException::withMessages([
                     'fecha_fin' => 'La fecha final debe ser posterior a la fecha de inicio.',
+                ]);
+            }
+            $reservationCutoff = $fechaFin->utc();
+            if (DB::table($this->table('reservas_espacio_comun'))
+                ->where('edificio_id', $edificioId)
+                ->where('ocupacion_id', $ocupacion->id)
+                ->whereIn('estado', ['pendiente', 'confirmada'])
+                ->where('inicio_at', '>=', $reservationCutoff)
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'fecha_fin' => 'Cancele o rechace primero las reservas vigentes del residente posteriores a la fecha final.',
                 ]);
             }
 
@@ -255,5 +266,12 @@ final class EloquentOcupacionRepository implements OcupacionRepositoryInterface
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function table(string $name): string
+    {
+        return DB::connection()->getDriverName() === 'pgsql'
+            ? config('database.application_schema').'.'.$name
+            : $name;
     }
 }

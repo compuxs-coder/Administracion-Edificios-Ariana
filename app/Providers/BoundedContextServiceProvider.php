@@ -5,6 +5,12 @@ namespace App\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Src\AreasComunes\Domain\Contracts\AreaComunRepositoryInterface;
+use Src\AreasComunes\Domain\Contracts\EstructuraAreasComunesReadInterface;
+use Src\AreasComunes\Domain\Contracts\OcupantesAreasComunesReadInterface;
+use Src\AreasComunes\Infrastructure\Repositories\EloquentAreaComunRepository;
+use Src\AreasComunes\Infrastructure\Repositories\EloquentEstructuraAreasComunesRead;
+use Src\AreasComunes\Infrastructure\Repositories\EloquentOcupantesAreasComunesRead;
 use Src\Auth\Domain\Contracts\UserRepositoryInterface;
 use Src\Auth\Infrastructure\Repositories\EloquentUserRepository;
 use Src\Edificio\Application\Policies\EdificioPolicy;
@@ -82,6 +88,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Gastos',
         'Tesoreria',
         'Operaciones',
+        'AreasComunes',
         'Cliente',
         'Categoria',
         'Producto',
@@ -122,6 +129,9 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(ProveedoresOperacionesReadInterface::class, EloquentProveedoresOperacionesRead::class);
         $this->app->bind(OrdenOperativaRepositoryInterface::class, EloquentOrdenOperativaRepository::class);
         $this->app->bind(MantenimientoPreventivoRepositoryInterface::class, EloquentMantenimientoPreventivoRepository::class);
+        $this->app->bind(EstructuraAreasComunesReadInterface::class, EloquentEstructuraAreasComunesRead::class);
+        $this->app->bind(OcupantesAreasComunesReadInterface::class, EloquentOcupantesAreasComunesRead::class);
+        $this->app->bind(AreaComunRepositoryInterface::class, EloquentAreaComunRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

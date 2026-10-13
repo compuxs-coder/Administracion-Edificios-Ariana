@@ -27,6 +27,7 @@ final class StoreEdificioRequest extends FormRequest
             ],
             'direccion' => ['required', 'string', 'min:3', 'max:255'],
             'ciudad' => ['required', 'string', 'min:2', 'max:100'],
+            'timezone' => ['sometimes', 'required', Rule::exists('zonas_horarias', 'nombre')],
             'telefono' => ['nullable', 'string', 'max:30'],
             'correo' => ['nullable', 'email', 'max:255'],
             'responsable' => ['nullable', 'string', 'max:150'],

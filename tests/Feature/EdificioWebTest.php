@@ -52,9 +52,10 @@ final class EdificioWebTest extends TestCase
                 'ruc' => '1790012345001',
                 'direccion' => '',
                 'ciudad' => '',
+                'timezone' => 'Zona/Inexistente',
                 'correo' => 'correo-invalido',
             ])
-            ->assertSessionHasErrors(['nombre', 'ruc', 'direccion', 'ciudad', 'correo']);
+            ->assertSessionHasErrors(['nombre', 'ruc', 'direccion', 'ciudad', 'timezone', 'correo']);
 
         $this->assertDatabaseCount('edificios', 1);
     }
@@ -71,6 +72,13 @@ final class EdificioWebTest extends TestCase
                 ->component('Edificio/show')
                 ->where('edificio.id', $edificio->id)
                 ->where('edificio.nombre', 'Edificio Central'));
+
+        $this->actingAs($user)
+            ->get(route('edificios.edit', $edificio))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('zonasHorarias', fn ($zones) => collect($zones)->contains('Asia/Kolkata')
+                    && collect($zones)->contains('America/Argentina/Buenos_Aires')));
 
         $this->actingAs($user)
             ->put(route('edificios.update', $edificio), $this->validData([

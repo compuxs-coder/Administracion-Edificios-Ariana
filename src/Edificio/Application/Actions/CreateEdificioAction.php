@@ -22,6 +22,7 @@ final readonly class CreateEdificioAction
             ruc: $data['ruc'] ?? null,
             direccion: $data['direccion'],
             ciudad: $data['ciudad'],
+            timezone: $data['timezone'] ?? 'America/Guayaquil',
             telefono: $data['telefono'] ?? null,
             correo: $data['correo'] ?? null,
             responsable: $data['responsable'] ?? null,

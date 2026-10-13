@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, y `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva, y `AreasComunes` administra espacios, reglas y reservas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -28,9 +28,9 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
-2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones` y `consulta`.
-3. Los 40 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones y mantenimiento preventivo. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos y sólo recibe las lecturas auxiliares mínimas; `consulta` sólo dispone de lectura, incluidas `operaciones.ver` y `mantenimiento_preventivo.ver`.
+2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes` y `consulta`.
+3. Los 46 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo y áreas comunes. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; los roles limitados sólo reciben las lecturas auxiliares mínimas y `consulta` dispone únicamente de lectura.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -249,6 +249,22 @@ ETAPA 17 amplía el mismo contexto `Operaciones`; no crea un contexto ni un cat�
 8. Los permisos son `mantenimiento_preventivo.ver`, `mantenimiento_preventivo.gestionar` y `mantenimiento_preventivo.programar`. `administrador` y `gestor_operaciones` reciben los tres; `consulta` recibe sólo lectura; los gestores de propiedad y finanzas no reciben ninguno.
 9. La programación no crea ni modifica proveedores, contratos, gastos, cuentas por pagar, desembolsos o movimientos de tesorería. También quedan fuera catálogo de activos, inventario, repuestos, asignación automática, SLA y notificaciones.
 
+## Áreas comunes y reservas
+
+ETAPA 18 incorpora el contexto `AreasComunes` como una vertical independiente de Operaciones y Finanzas:
+
+1. Un espacio pertenece a un edificio, usa un código normalizado único en ese edificio, capacidad, estado y una ubicación por torre, piso o detalle libre. La inactivación reemplaza la eliminación física y queda bloqueada mientras existan reservas confirmadas futuras.
+2. Las condiciones de uso se versionan en reglas con intervalos semiabiertos de vigencia. Una nueva versión cierra la regla abierta anterior; reglas y horarios históricos no se editan ni eliminan.
+3. Cada regla define aprobación, duración mínima y máxima, antelación, buffers, aforo, reglamento y uno o varios horarios locales no solapados. PostgreSQL bloquea la regla al insertar horarios para impedir solapamientos concurrentes directos.
+4. Una reserva administrativa exige un residente con ocupación vigente en el edificio para la fecha seleccionada. La aprobación vuelve a comprobar esa vigencia y una ocupación no puede finalizarse antes de reservas pendientes o confirmadas. Valida el mismo día local, horario, duración, antelación, aforo y capacidad física; las fechas administrativas y la antelación máxima siguen el calendario de la zona del edificio y no períodos fijos de 24 horas.
+5. Una regla sin aprobación confirma inmediatamente. Una regla con aprobación crea una solicitud pendiente; aprobarla vuelve a comprobar disponibilidad dentro de la transacción. Rechazo y cancelación conservan actor, fecha y motivo.
+6. Sólo las reservas confirmadas bloquean disponibilidad. El intervalo de exclusividad incluye preparación y limpieza y se trata como semiabierto, por lo que dos bloques contiguos son válidos.
+7. Cada edificio declara una zona IANA tomada del catálogo persistido `zonas_horarias`, sincronizado con PHP y PostgreSQL mediante migración. La zona se congela en la regla y en el snapshot de la reserva; los instantes se guardan en UTC, se muestran y filtran por día local, y se rechazan horas inexistentes, ambiguas o intervalos que atraviesen DST. La zona del edificio no puede cambiar después de crear la primera regla.
+8. Las confirmaciones bloquean el espacio antes de comprobar solapamientos, de modo que PostgreSQL serializa intentos concurrentes. Constraints y triggers protegen forma, aislamiento, transiciones, inmutabilidad y bitácora; SQLite instala guards equivalentes para pruebas.
+9. La bitácora append-only registra creación y cambios de espacio, versiones de reglas, solicitudes y transiciones. No existen rutas destructivas para espacios, reglas, horarios, reservas o eventos.
+10. Los permisos son `areas_comunes.ver`, `areas_comunes.gestionar`, `reservas_areas_comunes.ver`, `reservas_areas_comunes.registrar`, `reservas_areas_comunes.aprobar` y `reservas_areas_comunes.cancelar`. `administrador` y `gestor_areas_comunes` reciben los seis; `consulta` recibe sólo lectura. La agenda, las reservas y sus eventos de bitácora exigen específicamente `reservas_areas_comunes.ver`, aunque el usuario pueda consultar el espacio.
+11. Permanecen fuera el autoservicio de residentes, disponibilidad pública, cobros, depósitos, multas, cargos, notificaciones e integración financiera.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -259,7 +275,7 @@ ETAPA 17 amplía el mismo contexto `Operaciones`; no crea un contexto ni un cat�
 | Gastos y proveedores | Proveedores, contratos, gastos, cuentas por pagar y desembolsos implementados |
 | Tesorería | Cuentas bancarias y cajas, movimientos manuales y conciliación de desembolsos implementados; extractos, importación y conciliación de ingresos fuera de alcance |
 | Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16; planes, recurrencias y órdenes preventivas implementados en ETAPA 17 |
-| Áreas comunes | Espacios, reglas y reservas |
+| Áreas comunes | Espacios, reglas versionadas, horarios, reservas y bitácora implementados en ETAPA 18 |
 | Comunicación | Comunicados, documentos y notificaciones |
 | Gobierno | Reportes, trazabilidad y auditoría |
 
@@ -316,6 +332,6 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería y Operaciones pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones y Áreas comunes pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.
