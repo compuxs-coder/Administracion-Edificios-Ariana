@@ -104,6 +104,7 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => [$applicationSchema, 'public'],
+            'timezone' => 'UTC',
             'sslmode' => 'prefer',
         ],
 

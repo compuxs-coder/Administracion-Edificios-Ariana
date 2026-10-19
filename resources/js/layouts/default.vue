@@ -145,6 +145,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/reservas-areas-comunes'),
   hidden: !canAny('reservas_areas_comunes.ver')
 }, {
+  label: 'Comunicados',
+  icon: 'i-lucide-megaphone',
+  to: '/comunicados',
+  onSelect: () => navigateTo('/comunicados'),
+  hidden: !canAny('comunicados.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

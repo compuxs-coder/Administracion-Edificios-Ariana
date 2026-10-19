@@ -13,6 +13,12 @@ use Src\AreasComunes\Infrastructure\Repositories\EloquentEstructuraAreasComunesR
 use Src\AreasComunes\Infrastructure\Repositories\EloquentOcupantesAreasComunesRead;
 use Src\Auth\Domain\Contracts\UserRepositoryInterface;
 use Src\Auth\Infrastructure\Repositories\EloquentUserRepository;
+use Src\Comunicacion\Domain\Contracts\CanalNotificacionComunicadoInterface;
+use Src\Comunicacion\Domain\Contracts\ComunicacionRepositoryInterface;
+use Src\Comunicacion\Domain\Contracts\DestinatariosComunicacionReadInterface;
+use Src\Comunicacion\Infrastructure\Notifications\CorreoComunicadoChannel;
+use Src\Comunicacion\Infrastructure\Repositories\EloquentComunicacionRepository;
+use Src\Comunicacion\Infrastructure\Repositories\EloquentDestinatariosComunicacionRead;
 use Src\Edificio\Application\Policies\EdificioPolicy;
 use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
 use Src\Edificio\Domain\Contracts\DepartamentoRepositoryInterface;
@@ -89,6 +95,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Tesoreria',
         'Operaciones',
         'AreasComunes',
+        'Comunicacion',
         'Cliente',
         'Categoria',
         'Producto',
@@ -132,6 +139,9 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(EstructuraAreasComunesReadInterface::class, EloquentEstructuraAreasComunesRead::class);
         $this->app->bind(OcupantesAreasComunesReadInterface::class, EloquentOcupantesAreasComunesRead::class);
         $this->app->bind(AreaComunRepositoryInterface::class, EloquentAreaComunRepository::class);
+        $this->app->bind(DestinatariosComunicacionReadInterface::class, EloquentDestinatariosComunicacionRead::class);
+        $this->app->bind(ComunicacionRepositoryInterface::class, EloquentComunicacionRepository::class);
+        $this->app->bind(CanalNotificacionComunicadoInterface::class, CorreoComunicadoChannel::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

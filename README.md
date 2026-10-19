@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 46 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 50 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -35,10 +35,11 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Planes de mantenimiento preventivo con recurrencia anclada, ocurrencias auditables y generación programada de órdenes por actor sistema.
 - Áreas comunes por edificio con reglas versionadas, horarios, aforo, buffers, aprobación configurable y reservas administrativas para ocupantes vigentes.
 - Fechas de reservas interpretadas en la zona IANA congelada por regla, instantes almacenados en UTC y rechazo de horas locales ambiguas o inexistentes por cambios DST.
+- Comunicados por edificio con borradores versionados, publicación inmutable, audiencia vigente de propietarios y residentes, documentos privados y entregas individuales por correo mediante outbox durable.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones y Áreas comunes dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación dentro del esquema PostgreSQL privado.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
 
@@ -65,6 +66,23 @@ El comando `php artisan operaciones:generar-mantenimiento-preventivo` admite edi
 Cada edificio usa una zona IANA. La zona queda congelada en la regla y en el snapshot de la reserva, los instantes se almacenan en UTC, los filtros respetan el día local y se rechazan horas inexistentes o repetidas por cambios DST. Las confirmaciones se serializan por espacio para impedir solapamientos concurrentes y la bitácora es append-only.
 
 La etapa añade el rol `gestor_areas_comunes` y seis permisos específicos. No incluye autoservicio de residentes, cobros, cargos, notificaciones ni integración financiera.
+
+## ETAPA 19 implementada
+
+**Comunicación y notificaciones** incorpora el contexto `Comunicacion` para preparar comunicados por edificio, adjuntar documentos privados y publicarlos por correo a propietarios vigentes, residentes vigentes o ambos. La audiencia se calcula con el día local del edificio, normaliza y deduplica correos, conserva snapshots por identidad y registra explícitamente destinatarios omitidos por correo ausente o inválido.
+
+Publicar es una transición irreversible: congela contenido, documentos y destinatarios dentro de una transacción y crea una entrega durable por dirección normalizada. Los workers reclaman entregas mediante lease, recuperan procesos vencidos y realizan hasta tres intentos con backoff; un fallo terminal puede reintentarse manualmente. La semántica es al menos una vez, por lo que un fallo después de que el proveedor acepte el correo puede producir un envío duplicado.
+
+Los documentos PDF/JPG/PNG admiten hasta 10 MB por archivo y 10 MB acumulados, validan estructura y SHA-256 y permanecen fuera del directorio público. El correo entrega enlaces firmados temporales vinculados a la entrega. La etapa añade el rol `gestor_comunicacion` y los permisos `comunicados.ver`, `comunicados.gestionar`, `comunicados.publicar` y `comunicados.entregas.ver`; este último protege correos, omisiones y errores de entrega.
+
+Producción debe ejecutar un worker de cola y el scheduler de Laravel. El scheduler recupera cada minuto las entregas disponibles o con lease vencido:
+
+```bash
+php artisan queue:work --tries=3
+php artisan schedule:work
+```
+
+ETAPA 19 no incluye portal de residentes, opt-out, respuestas, chat, SMS, WhatsApp, push, campañas programadas, segmentación por torre/piso/departamento ni automatizaciones desde otros módulos.
 
 ## Tecnologías
 

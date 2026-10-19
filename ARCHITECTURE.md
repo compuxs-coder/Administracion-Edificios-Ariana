@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva, y `AreasComunes` administra espacios, reglas y reservas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva, `AreasComunes` administra espacios, reglas y reservas, y `Comunicacion` publica comunicados y coordina sus entregas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -28,9 +28,9 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
-2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes` y `consulta`.
-3. Los 46 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo y áreas comunes. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; los roles limitados sólo reciben las lecturas auxiliares mínimas y `consulta` dispone únicamente de lectura.
+2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes`, `gestor_comunicacion` y `consulta`.
+3. Los 50 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes y comunicación. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; `gestor_comunicacion` gestiona comunicados, documentos y entregas; los roles limitados sólo reciben las lecturas auxiliares mínimas y `consulta` dispone únicamente de lectura.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -265,6 +265,25 @@ ETAPA 18 incorpora el contexto `AreasComunes` como una vertical independiente de
 10. Los permisos son `areas_comunes.ver`, `areas_comunes.gestionar`, `reservas_areas_comunes.ver`, `reservas_areas_comunes.registrar`, `reservas_areas_comunes.aprobar` y `reservas_areas_comunes.cancelar`. `administrador` y `gestor_areas_comunes` reciben los seis; `consulta` recibe sólo lectura. La agenda, las reservas y sus eventos de bitácora exigen específicamente `reservas_areas_comunes.ver`, aunque el usuario pueda consultar el espacio.
 11. Permanecen fuera el autoservicio de residentes, disponibilidad pública, cobros, depósitos, multas, cargos, notificaciones e integración financiera.
 
+## Comunicación y notificaciones
+
+ETAPA 19 incorpora el contexto `Comunicacion` como una vertical independiente que consume identidades y vigencias de `Propiedad` mediante un contrato de lectura:
+
+1. Un comunicado pertenece a un edificio, nace como `borrador` y selecciona propietarios, residentes o ambas audiencias. Título, cuerpo y audiencia sólo se editan en borrador y usan una marca de actualización para impedir sobrescrituras concurrentes.
+2. La audiencia se resuelve con la fecha local del edificio sobre titularidades u ocupaciones vigentes, perfiles activos y departamentos activos. Una identidad con ambos perfiles se combina sin duplicarse.
+3. El correo se recorta y normaliza a minúsculas. Identidades diferentes con la misma dirección producen una sola entrega; quienes carecen de correo válido quedan en el snapshot como omitidos con motivo explícito.
+4. La vista previa es dinámica y no congela datos. La publicación vuelve a resolver la audiencia dentro de la transacción y se rechaza cuando no existe ninguna entrega válida.
+5. Publicar crea snapshots de destinatarios y una entrega `email` por dirección normalizada. El contenido, los documentos y la audiencia publicada no vuelven a editarse ni eliminarse; el único cambio documental posterior es `publicado -> archivado`.
+6. Las entregas forman un outbox durable con estados `pendiente`, `procesando`, `reintento`, `enviada` y `fallida`. El claim bloquea la fila, incrementa el intento y aplica un lease de cinco minutos para recuperar workers interrumpidos.
+7. Se realizan hasta tres intentos automáticos con backoff. Una entrega terminal fallida puede volver manualmente a `reintento` desde la trazabilidad paginada; cada acción manual queda en bitácora.
+8. La garantía es al menos una vez: persistir el éxito después de que el proveedor acepte el mensaje no puede hacerse atómicamente con un SMTP externo, por lo que una recuperación excepcional puede duplicar el correo.
+9. La publicación despacha el coordinador después del commit. Además, el scheduler consulta cada minuto entregas pendientes, reintentos disponibles y leases vencidos, de modo que el outbox se recupera aunque falle el primer dispatch. Los jobs de envío son únicos por entrega para no acumular duplicados mientras esperan worker.
+10. Los documentos PDF/JPG/PNG se validan por estructura, tamaño y SHA-256; cada archivo y la suma del comunicado admiten hasta 10 MB. Se almacenan en un disco privado no servido, cuyo identificador queda persistido con el documento, y se vuelven inmutables al publicar. Una bandeja durable registra las rutas antes de tocar el filesystem y una limpieza diaria acotada retira residuos antiguos que pudiera dejar un corte.
+11. El correo incluye enlaces temporales firmados vinculados a una entrega y un documento del mismo comunicado. La descarga vuelve a verificar existencia, tamaño y hash antes de transmitir el archivo.
+12. La bitácora append-only registra creación, edición, documentos, publicación, archivado y reintentos. Los valores históricos de edición se ocultan a quien carece de gestión; correos, omisiones y errores se entregan al frontend únicamente con `comunicados.entregas.ver`.
+13. Los permisos son `comunicados.ver`, `comunicados.gestionar`, `comunicados.publicar` y `comunicados.entregas.ver`. `administrador` y `gestor_comunicacion` reciben los cuatro; `consulta` sólo recibe lectura.
+14. El canal se abstrae mediante un contrato, pero ETAPA 19 implementa únicamente correo. No existen chat, respuestas, opt-out, portal de residentes, SMS, WhatsApp, push, campañas, programación futura, segmentación estructural ni automatizaciones desde otros módulos.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -276,7 +295,7 @@ ETAPA 18 incorpora el contexto `AreasComunes` como una vertical independiente de
 | Tesorería | Cuentas bancarias y cajas, movimientos manuales y conciliación de desembolsos implementados; extractos, importación y conciliación de ingresos fuera de alcance |
 | Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16; planes, recurrencias y órdenes preventivas implementados en ETAPA 17 |
 | Áreas comunes | Espacios, reglas versionadas, horarios, reservas y bitácora implementados en ETAPA 18 |
-| Comunicación | Comunicados, documentos y notificaciones |
+| Comunicación | Comunicados, documentos privados, snapshots de audiencia y entregas de correo mediante outbox implementados en ETAPA 19 |
 | Gobierno | Reportes, trazabilidad y auditoría |
 
 ## Decisiones pendientes
@@ -332,6 +351,8 @@ Un contexto heredado sólo puede retirarse después de comprobar:
 
 El esquema privado es `administracion_edificios`. `public` permanece temporalmente en el `search_path` para resolver tablas históricas, mientras `public.migrations` conserva el historial aplicado.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones y Áreas comunes pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Laravel y cada sesión PostgreSQL operan en UTC. Las zonas IANA de los edificios se aplican sólo al interpretar días y horarios del dominio; no alteran los instantes persistidos en columnas `timestamptz`.
+
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

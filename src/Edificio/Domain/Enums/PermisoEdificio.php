@@ -50,4 +50,8 @@ enum PermisoEdificio: string
     case RESERVAS_AREAS_COMUNES_REGISTRAR = 'reservas_areas_comunes.registrar';
     case RESERVAS_AREAS_COMUNES_APROBAR = 'reservas_areas_comunes.aprobar';
     case RESERVAS_AREAS_COMUNES_CANCELAR = 'reservas_areas_comunes.cancelar';
+    case COMUNICADOS_VER = 'comunicados.ver';
+    case COMUNICADOS_GESTIONAR = 'comunicados.gestionar';
+    case COMUNICADOS_PUBLICAR = 'comunicados.publicar';
+    case COMUNICADOS_ENTREGAS_VER = 'comunicados.entregas.ver';
 }

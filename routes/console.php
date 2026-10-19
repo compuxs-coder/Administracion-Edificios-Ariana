@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Schedule;
 use Carbon\CarbonImmutable;
 use Src\Finanzas\Application\Actions\AutomaticCargosAction;
 use Src\Operaciones\Application\Actions\GeneratePreventiveMaintenanceOrdersAction;
+use Src\Comunicacion\Application\Actions\DispatchDueComunicadoDeliveriesAction;
+use Src\Comunicacion\Application\Actions\CleanupOrphanedComunicadoDocumentsAction;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -82,5 +84,34 @@ Artisan::command('operaciones:generar-mantenimiento-preventivo
 
 Schedule::command('operaciones:generar-mantenimiento-preventivo --limite=100')
     ->dailyAt('02:00')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::call(static fn (): int => app(DispatchDueComunicadoDeliveriesAction::class)->execute())
+    ->name('comunicacion:despachar-entregas')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->onOneServer();
+
+Artisan::command('comunicacion:limpiar-documentos-huerfanos
+    {--horas=24 : Antigüedad mínima del archivo sin fila asociada}
+    {--limite=500 : Máximo de archivos huérfanos por ejecución}', function (CleanupOrphanedComunicadoDocumentsAction $cleanup): int {
+    $hours = filter_var($this->option('horas'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $limit = filter_var($this->option('limite'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5000]]);
+    if ($hours === false || $limit === false) {
+        $this->error('Horas debe ser positivo y límite debe estar entre 1 y 5000.');
+
+        return 1;
+    }
+    $result = $cleanup->execute($hours, $limit);
+    $this->table(['Revisados', 'Eliminados', 'Errores', 'Límite'], [[
+        $result['examined'], $result['deleted'], $result['errors'], $result['limitReached'] ? 'sí' : 'no',
+    ]]);
+
+    return $result['errors'] === 0 ? 0 : 1;
+})->purpose('Elimina archivos huérfanos antiguos del almacenamiento privado de Comunicación.');
+
+Schedule::command('comunicacion:limpiar-documentos-huerfanos --horas=24 --limite=500')
+    ->dailyAt('03:10')
     ->withoutOverlapping()
     ->onOneServer();

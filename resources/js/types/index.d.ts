@@ -38,7 +38,7 @@ export interface EdificioFormData {
   responsable: string
 }
 
-export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'gestor_areas_comunes' | 'consulta'
+export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'gestor_areas_comunes' | 'gestor_comunicacion' | 'consulta'
 
 export interface RolAccesoEdificio {
   codigo: RolEdificio
@@ -1470,5 +1470,110 @@ export interface EspaciosComunesPaginados {
 
 export interface ReservasAreasComunesPaginadas {
   data: ReservaAreaComun[]
+  meta: PaginationMeta
+}
+
+export type EstadoComunicado = 'borrador' | 'publicado' | 'archivado'
+export type AudienciaComunicado = 'propietarios' | 'residentes'
+export type EstadoEntregaComunicado = 'pendiente' | 'procesando' | 'reintento' | 'enviada' | 'fallida'
+export type TipoEventoComunicacion = 'comunicado_creado' | 'comunicado_actualizado' | 'documento_agregado' | 'documento_retirado' | 'comunicado_publicado' | 'comunicado_archivado' | 'entrega_reintentada'
+
+export interface EdificioComunicacionOption {
+  id: string
+  nombre: string
+  estado: EstadoEdificio
+  timezone: string
+}
+
+export interface ComunicadoFormData {
+  edificio_id: string
+  titulo: string
+  cuerpo: string
+  audiencias: AudienciaComunicado[]
+  updated_at?: string
+}
+
+export interface ComunicadoResumen {
+  id: string
+  edificioId: string
+  edificio: string
+  titulo: string
+  cuerpo: string
+  audiencias: AudienciaComunicado[]
+  estado: EstadoComunicado
+  version: number
+  totalCandidatos?: number
+  totalEntregas?: number
+  totalOmitidos?: number
+  documentosCount: number
+  publicadoAt: string | null
+  archivadoAt: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface DocumentoComunicado {
+  id: string
+  nombre: string
+  mimeType: string
+  tamanoBytes: number
+  descripcion: string | null
+  createdAt: string | null
+}
+
+export interface VistaPreviaDestinatariosComunicado {
+  candidatos: number
+  propietarios: number
+  residentes: number
+  entregas: number
+  omitidos: number
+  duplicados: number
+}
+
+export interface EntregaComunicado {
+  id: string
+  canal: 'email'
+  destino: string
+  estado: EstadoEntregaComunicado
+  intentos: number
+  destinatariosCount: number
+  ultimoIntentoAt: string | null
+  enviadoAt: string | null
+  errorCodigo: string | null
+  errorDetalle: string | null
+}
+
+export interface DestinatarioOmitidoComunicado {
+  id: string
+  nombre: string
+  email: string | null
+  motivo: 'sin_correo' | 'correo_invalido'
+}
+
+export interface BitacoraComunicacion {
+  id: string
+  tipo: TipoEventoComunicacion
+  actorNombre: string
+  detalle: Record<string, unknown> | null
+  createdAt: string | null
+}
+
+export interface ComunicadoDetalle extends Omit<ComunicadoResumen, 'documentosCount'> {
+  timezone: string
+  puedeGestionar: boolean
+  puedePublicar: boolean
+  puedeVerEntregas: boolean
+  documentos: DocumentoComunicado[]
+  resumenEntregas?: Record<EstadoEntregaComunicado, number>
+  vistaPrevia: VistaPreviaDestinatariosComunicado | null
+  bitacora: BitacoraComunicacion[]
+  entregas?: EntregaComunicado[]
+  entregasMeta?: PaginationMeta
+  omitidos?: DestinatarioOmitidoComunicado[]
+  omitidosMeta?: PaginationMeta
+}
+
+export interface ComunicadosPaginados {
+  data: ComunicadoResumen[]
   meta: PaginationMeta
 }

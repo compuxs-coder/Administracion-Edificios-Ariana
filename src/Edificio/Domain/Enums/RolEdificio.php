@@ -9,5 +9,6 @@ enum RolEdificio: string
     case GESTOR_FINANZAS = 'gestor_finanzas';
     case GESTOR_OPERACIONES = 'gestor_operaciones';
     case GESTOR_AREAS_COMUNES = 'gestor_areas_comunes';
+    case GESTOR_COMUNICACION = 'gestor_comunicacion';
     case CONSULTA = 'consulta';
 }

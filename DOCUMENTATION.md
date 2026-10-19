@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas, mantenimiento preventivo y áreas comunes con reservas son módulos funcionales.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas, mantenimiento preventivo, áreas comunes con reservas y comunicación por correo son módulos funcionales.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -128,6 +128,45 @@ reservas_areas_comunes.cancelar
 
 Administrador y `gestor_areas_comunes` reciben los seis permisos; consulta recibe únicamente los dos permisos de lectura. Los gestores de propiedad, finanzas y operaciones no los reciben por defecto. La consulta del espacio no expone agenda, snapshots de reservantes ni eventos de reserva si falta `reservas_areas_comunes.ver`.
 
+## ETAPA 19: Comunicación y notificaciones
+
+ETAPA 19 implementa `Comunicacion` para publicar información administrativa por edificio sin convertir el envío de correo en parte del contexto `Propiedad`.
+
+Reglas aprobadas:
+
+- El comunicado nace como `borrador`; título, cuerpo y audiencia son editables sólo en ese estado y la versión de actualización evita sobrescrituras concurrentes.
+- La audiencia puede incluir propietarios vigentes, residentes vigentes o ambos. Se resuelve con el día local del edificio y sólo incluye perfiles y departamentos activos.
+- La misma identidad se combina cuando es propietaria y residente. Los correos se recortan, normalizan a minúsculas y deduplican entre identidades y departamentos.
+- Una identidad sin correo o con una dirección inválida se conserva como destinatario omitido. La vista previa presenta únicamente conteos; correos y errores requieren permiso sensible.
+- Publicar vuelve a calcular la audiencia, exige al menos un correo válido y congela contenido, documentos y snapshots dentro de una transacción. No existen despublicación ni eliminación física; un publicado sólo puede archivarse.
+- Cada dirección normalizada crea una entrega durable. El flujo es `pendiente -> procesando -> enviada` o `reintento`; después del tercer fallo queda `fallida` y admite reintento manual.
+- El claim de una entrega aplica un lease de 300 segundos. El scheduler recupera cada minuto pendientes, reintentos disponibles y procesos cuyo lease venció; cada job es único por entrega mientras espera o se procesa.
+- El envío tiene semántica al menos una vez. Un corte entre la aceptación del proveedor y la persistencia local puede causar un correo duplicado.
+- Los documentos PDF/JPG/PNG se almacenan por defecto en el disco privado `communications`, con máximo de 10 archivos, 10 MB por archivo y 10 MB acumulados. Se validan por estructura, tamaño y SHA-256, y cada fila conserva el identificador del disco usado.
+- El correo expone sólo enlaces temporales firmados y asociados a la entrega. Cada descarga verifica nuevamente tamaño y SHA-256.
+- La bitácora de comunicación es append-only e incluye contenido, documentos, publicación, archivo y reintentos manuales. Los usuarios con lectura básica sólo reciben los nombres de los campos editados, no los valores históricos del borrador.
+- El único canal implementado es correo; el contrato de canal permite una extensión futura sin incorporarla a esta etapa.
+
+RBAC:
+
+```text
+comunicados.ver
+comunicados.gestionar
+comunicados.publicar
+comunicados.entregas.ver
+```
+
+`administrador` y `gestor_comunicacion` reciben los cuatro permisos. `consulta` recibe únicamente `comunicados.ver`; por ello puede leer el comunicado y sus documentos, pero no recibe direcciones, omisiones ni errores de entrega. Los demás gestores no reciben permisos de Comunicación por defecto.
+
+Operación requerida:
+
+```bash
+php artisan queue:work --tries=3
+php artisan schedule:work
+```
+
+`QUEUE_CONNECTION` debe usar un backend durable en producción. `COMUNICACION_DOCUMENT_DISK` debe identificar un disco configurado con visibilidad `private` y sin `serve`; selecciona el disco para nuevas cargas, mientras los documentos existentes continúan usando el disco persistido en su fila. Si la migración encuentra documentos previos a esa columna, `COMUNICACION_DOCUMENT_LEGACY_DISK` debe declarar explícitamente dónde residen; sólo después de migrar puede cambiarse el disco de nuevas cargas. `COMUNICACION_DOCUMENT_LINK_MINUTES` define la vigencia de los enlaces, 43200 minutos por defecto. ETAPA 19 no incluye portal de residentes, opt-out, respuestas, chat, SMS, WhatsApp, push, programación de campañas, segmentación por estructura ni automatizaciones desde otros módulos.
+
 ## Organización
 
 ```text
@@ -176,12 +215,13 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 46 permisos y administración de miembros |
+| `administrador` | Los 50 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
 | `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas y mantenimiento preventivo |
 | `gestor_areas_comunes` | Lectura de edificio y estructura, y gestión completa de espacios y reservas |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones, mantenimiento preventivo y áreas comunes |
+| `gestor_comunicacion` | Lectura de edificio y estructura, y gestión completa de comunicados, documentos y entregas |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes y comunicados |
 
 Permisos:
 
@@ -203,6 +243,8 @@ operaciones.asignar            operaciones.cancelar              operaciones.rea
 mantenimiento_preventivo.ver   mantenimiento_preventivo.gestionar mantenimiento_preventivo.programar
 areas_comunes.ver              areas_comunes.gestionar             reservas_areas_comunes.ver
 reservas_areas_comunes.registrar reservas_areas_comunes.aprobar    reservas_areas_comunes.cancelar
+comunicados.ver                 comunicados.gestionar              comunicados.publicar
+comunicados.entregas.ver
 ```
 
 Reglas de seguridad:
@@ -250,11 +292,20 @@ Durante la transición:
 - Cuentas de tesorería, movimientos y conciliaciones de desembolsos residen en `administracion_edificios`.
 - Órdenes operativas, responsables históricos, evidencias, bitácora y consecutivos residen en `administracion_edificios`.
 - Espacios comunes, reglas, horarios, reservas, catálogo de zonas IANA y bitácora de áreas comunes residen en `administracion_edificios`.
+- Comunicados, documentos, entregas, destinatarios y bitácora de comunicación residen en `administracion_edificios`.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
 
+La conexión PostgreSQL fija la sesión en UTC para que los valores `timestamptz`, incluidos disponibilidad y leases del outbox, representen el mismo instante que el reloj UTC de Laravel sin depender de la zona configurada en el servidor o en el rol de base de datos.
+
 No debe cambiarse el `search_path` sin conservar la calificación de `public.migrations`. Laravel consulta el esquema actual al comprobar la existencia del repositorio y podría considerar pendientes todas las migraciones históricas.
+
+Los `down()` de las migraciones `020` a `050` de Comunicación rechazan el rollback antes de modificar el esquema si existen asignaciones o invitaciones de `gestor_comunicacion`, comunicados, documentos, destinatarios, entregas, bitácora o archivos pendientes de limpieza. La integración PostgreSQL de estos preflights y del backfill de disco puede ejecutarse, únicamente contra PostgreSQL local de desarrollo, con:
+
+```bash
+COMUNICACION_PG_INTEGRATION=1 vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php tests/Integration/ComunicacionPostgresMigrationTest.php
+```
 
 No use `migrate:fresh`, `migrate:reset` ni `migrate:refresh` para esta transición. Pueden eliminar tablas de ambos esquemas y recrear las tablas históricas en una ubicación diferente. Tampoco debe ejecutarse un rollback que atraviese la migración que crea el esquema privado.
 
@@ -686,6 +737,46 @@ PATCH  /edificios/{edificio}/reservas-areas-comunes/{reserva}/cancelar
 ```
 
 No existen rutas de eliminación para espacios, reglas, horarios, reservas o entradas de bitácora.
+
+## Módulo Comunicación
+
+ETAPA 19 implementa `src/Comunicacion` con acciones de aplicación, contratos de repositorio y canal, un adaptador mínimo de lectura de Propiedad, jobs en cola y páginas Inertia. El contexto no escribe identidades, titularidades ni ocupaciones.
+
+Tablas:
+
+- `comunicados`: contenido, audiencia, estado, versión, totales y trazabilidad de publicación y archivo.
+- `documentos_comunicado`: metadatos privados, disco, tamaño, MIME, SHA-256 y ruta interna.
+- `entregas_comunicado`: outbox por canal y destino normalizado, lease, intentos, resultado y errores.
+- `destinatarios_comunicado`: snapshot por identidad, perfiles, departamentos, correo y omisión.
+- `bitacora_comunicacion`: eventos append-only con actor y detalle estructurado.
+- `limpieza_documentos_comunicacion`: bandeja durable y acotada de archivos que deben retirarse del almacenamiento.
+
+Las FKs compuestas incluyen `edificio_id` y `comunicado_id`. PostgreSQL protege audiencia válida, forma de estados, snapshots, transiciones de entrega, publicación, inmutabilidad de documentos y bitácora, y ausencia de eliminación destructiva. Además verifica al cierre de la transacción que los conteos publicados coincidan exactamente con destinatarios, omitidos y entregas y que cada correo incluido corresponda con su entrega. SQLite se usa sólo en pruebas: como no ofrece triggers diferibles, permite materializar hijos mientras el padre sigue en borrador y el repositorio comprueba los conteos exactos antes del commit. La aplicación filtra todos los listados por permisos efectivos y vuelve a autorizar el edificio exacto dentro de cada mutación.
+
+La vista de trazabilidad pagina entregas y omisiones en bloques de hasta 250 registros y prioriza las entregas fallidas. Todas las páginas permanecen accesibles para inspección y reintento manual, y los totales completos aparecen en el resumen.
+
+Rutas principales:
+
+```text
+GET     /comunicados
+GET     /comunicados/create
+POST    /edificios/{edificio}/comunicados
+GET     /edificios/{edificio}/comunicados/{comunicado}
+GET     /edificios/{edificio}/comunicados/{comunicado}/edit
+PUT     /edificios/{edificio}/comunicados/{comunicado}
+GET     /edificios/{edificio}/comunicados/{comunicado}/destinatarios/preview
+POST    /edificios/{edificio}/comunicados/{comunicado}/publicar
+PATCH   /edificios/{edificio}/comunicados/{comunicado}/archivar
+POST    /edificios/{edificio}/comunicados/{comunicado}/documentos
+DELETE  /edificios/{edificio}/comunicados/{comunicado}/documentos/{documento}
+GET     /edificios/{edificio}/comunicados/{comunicado}/documentos/{documento}/download
+POST    /edificios/{edificio}/comunicados/{comunicado}/entregas/{entrega}/reintentar
+GET     /comunicacion/documentos/{documento}/entregas/{entrega}
+```
+
+La ruta pública final sólo acepta una firma temporal válida y una pareja entrega-documento del mismo comunicado publicado o archivado. El `DELETE` de documentos existe únicamente mientras el comunicado es borrador; las restricciones de aplicación y base lo rechazan después de publicar.
+
+Cada carga registra la ruta pendiente antes de escribir el archivo y la retira atómicamente al confirmar sus metadatos. El retiro confirma en una sola transacción la eliminación de la fila y la ruta pendiente antes de intentar borrar el archivo. El scheduler ejecuta diariamente `comunicacion:limpiar-documentos-huerfanos --horas=24 --limite=500`; procesa únicamente esa bandeja durable, nunca enumera un bucket completo, y la espera mínima impide competir con una carga activa.
 
 ## Módulos transitorios
 
