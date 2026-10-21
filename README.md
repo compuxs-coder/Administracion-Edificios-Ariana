@@ -7,7 +7,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Autenticación web mediante sesiones Laravel.
 - Autenticación API mediante Laravel Sanctum.
 - CRUD web de Edificios con búsqueda, detalle, estado y asignación automática del creador.
-- Aislamiento de Edificios mediante membresías, roles múltiples y 50 permisos con alcance por edificio.
+- Aislamiento de Edificios mediante membresías, roles múltiples y 52 permisos con alcance por edificio.
 - Administración de miembros, invitaciones por correo con vencimiento, revocación lógica e historial inmutable de cambios de acceso.
 - Estructura `Edificio -> Torre -> Piso -> Departamento`, con torre principal automática para edificios pequeños.
 - CRUD web de torres, pisos, departamentos, parqueaderos y bodegas, sin eliminación física.
@@ -36,10 +36,11 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Áreas comunes por edificio con reglas versionadas, horarios, aforo, buffers, aprobación configurable y reservas administrativas para ocupantes vigentes.
 - Fechas de reservas interpretadas en la zona IANA congelada por regla, instantes almacenados en UTC y rechazo de horas locales ambiguas o inexistentes por cambios DST.
 - Comunicados por edificio con borradores versionados, publicación inmutable, audiencia vigente de propietarios y residentes, documentos privados y entregas individuales por correo mediante outbox durable.
+- Centro de Auditoría Unificado de sólo lectura sobre cinco bitácoras nativas, con selección multiedificio autorizada, referencias opacas y minimización de datos sensibles.
 - Dashboard sin métricas simuladas.
 - CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
 - APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
-- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación dentro del esquema PostgreSQL privado.
+- Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación dentro del esquema PostgreSQL privado; Gobierno reutiliza sus bitácoras sin duplicarlas.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).
 
@@ -83,6 +84,14 @@ php artisan schedule:work
 ```
 
 ETAPA 19 no incluye portal de residentes, opt-out, respuestas, chat, SMS, WhatsApp, push, campañas programadas, segmentación por torre/piso/departamento ni automatizaciones desde otros módulos.
+
+## ETAPA 20 implementada
+
+**Gobierno y auditoría administrativa** incorpora un Centro de Auditoría Unificado que pagina eventos nativos de acceso, operaciones, mantenimiento preventivo, áreas comunes y comunicación. Cada fuente conserva su tabla canónica y su permiso de lectura; la consulta no crea eventos, no copia historiales y rechaza cualquier selección que incluya un edificio no autorizado.
+
+La etapa añade `gestor_gobierno`, `gobierno.ver` y `gobierno.detalles.ver`. `consulta` no recibe acceso por defecto. El frontend nunca obtiene el JSON histórico ni UUID internos; actores y referencias opacas requieren el permiso de detalle, mientras correos, identificaciones, destinatarios, cuerpos, descripciones e importes permanecen fuera de la respuesta.
+
+La retención puede declararse por fuente y tipo, pero no ejecuta eliminación automática. Los documentos financieros derivados, la auditoría legal, los reportes programados y las exportaciones quedan fuera; estas últimas se evaluarán en ETAPA 20.1.
 
 ## Tecnologías
 

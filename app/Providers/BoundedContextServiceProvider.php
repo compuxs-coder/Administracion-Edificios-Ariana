@@ -56,6 +56,8 @@ use Src\Gastos\Infrastructure\Repositories\EloquentCuentaPorPagarRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentDesembolsoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
+use Src\Gobierno\Domain\Contracts\AuditoriaRepositoryInterface;
+use Src\Gobierno\Infrastructure\Repositories\EloquentAuditoriaRepository;
 use Src\Operaciones\Domain\Contracts\EstructuraMiembrosOperacionesReadInterface;
 use Src\Operaciones\Domain\Contracts\MantenimientoPreventivoRepositoryInterface;
 use Src\Operaciones\Domain\Contracts\OrdenOperativaRepositoryInterface;
@@ -96,6 +98,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Operaciones',
         'AreasComunes',
         'Comunicacion',
+        'Gobierno',
         'Cliente',
         'Categoria',
         'Producto',
@@ -142,6 +145,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(DestinatariosComunicacionReadInterface::class, EloquentDestinatariosComunicacionRead::class);
         $this->app->bind(ComunicacionRepositoryInterface::class, EloquentComunicacionRepository::class);
         $this->app->bind(CanalNotificacionComunicadoInterface::class, CorreoComunicadoChannel::class);
+        $this->app->bind(AuditoriaRepositoryInterface::class, EloquentAuditoriaRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

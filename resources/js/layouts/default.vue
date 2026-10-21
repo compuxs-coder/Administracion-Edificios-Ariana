@@ -151,6 +151,12 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   onSelect: () => navigateTo('/comunicados'),
   hidden: !canAny('comunicados.ver')
 }, {
+  label: 'Centro de auditoría',
+  icon: 'i-lucide-shield-check',
+  to: '/gobierno/auditoria',
+  onSelect: () => navigateTo('/gobierno/auditoria'),
+  hidden: !canAny('gobierno.ver')
+}, {
   label: 'Clientes',
   icon: 'i-lucide-users-round',
   to: '/clientes',

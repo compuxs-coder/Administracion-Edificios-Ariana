@@ -1,0 +1,194 @@
+<?php
+
+namespace Src\Gobierno\Infrastructure\Repositories;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+use Src\Edificio\Domain\Contracts\AccesoEdificioRepositoryInterface;
+use Src\Edificio\Domain\Enums\PermisoEdificio;
+use Src\Edificio\Infrastructure\Models\EdificioEloquentModel;
+use Src\Gobierno\Domain\Contracts\AuditoriaRepositoryInterface;
+use Src\Gobierno\Infrastructure\ReadModels\AccesosAuditoriaRead;
+use Src\Gobierno\Infrastructure\ReadModels\AreasComunesAuditoriaRead;
+use Src\Gobierno\Infrastructure\ReadModels\ComunicacionAuditoriaRead;
+use Src\Gobierno\Infrastructure\ReadModels\FuenteAuditoriaRead;
+use Src\Gobierno\Infrastructure\ReadModels\MantenimientoAuditoriaRead;
+use Src\Gobierno\Infrastructure\ReadModels\OrdenesAuditoriaRead;
+
+final class EloquentAuditoriaRepository implements AuditoriaRepositoryInterface
+{
+    public function __construct(
+        private readonly AccesoEdificioRepositoryInterface $access,
+        private readonly AccesosAuditoriaRead $accessEvents,
+        private readonly OrdenesAuditoriaRead $operationEvents,
+        private readonly MantenimientoAuditoriaRead $maintenanceEvents,
+        private readonly AreasComunesAuditoriaRead $commonAreaEvents,
+        private readonly ComunicacionAuditoriaRead $communicationEvents,
+    ) {}
+
+    public function paginateForUser(string $userId, array $filters): array
+    {
+        $authorizedBuildingIds = $this->access->buildingIds($userId, PermisoEdificio::GOBIERNO_VER);
+        $requestedBuildingIds = array_values(array_unique($filters['edificios'] ?? []));
+        $selectedBuildingIds = $requestedBuildingIds === [] ? $authorizedBuildingIds : $requestedBuildingIds;
+        if ($selectedBuildingIds === [] || array_diff($selectedBuildingIds, $authorizedBuildingIds) !== []) {
+            abort(403);
+        }
+
+        $queries = [];
+        foreach ($this->sources() as $source) {
+            if (($filters['fuente'] ?? null) !== null && $filters['fuente'] !== $source->code()) {
+                continue;
+            }
+            if (($filters['tipo'] ?? null) !== null && ! array_key_exists($filters['tipo'], $source->eventTypes())) {
+                continue;
+            }
+            $query = $source->query($userId, $selectedBuildingIds, $filters['tipo'] ?? null);
+            if ($query !== null) {
+                $queries[] = $query;
+            }
+        }
+
+        $perPage = (int) config('gobierno.audit_page_size', 25);
+        $page = (int) ($filters['page'] ?? 1);
+        if ($queries === []) {
+            return $this->emptyPage($selectedBuildingIds, $perPage);
+        }
+
+        $union = array_shift($queries);
+        foreach ($queries as $query) {
+            $union->unionAll($query);
+        }
+        $paginator = DB::query()->fromSub($union, 'audit_events')
+            ->orderByDesc('created_at')
+            ->orderBy('fuente')
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $rows = collect($paginator->items());
+        $buildingNames = EdificioEloquentModel::query()
+            ->whereKey($selectedBuildingIds)
+            ->pluck('nombre', 'id');
+        $detailBuildingIds = $this->access->buildingIds($userId, PermisoEdificio::GOBIERNO_DETALLES_VER);
+        $actorIds = $rows
+            ->filter(static fn (object $row): bool => in_array($row->edificio_id, $detailBuildingIds, true))
+            ->pluck('actor_user_id')->filter()->unique()->values()->all();
+        $actorNames = DB::table($this->usersTable())->whereIn('id', $actorIds)->pluck('name', 'id');
+        $sources = collect($this->sources())->keyBy(static fn (FuenteAuditoriaRead $source): string => $source->code());
+
+        return [
+            'items' => $rows->map(function (object $row) use ($buildingNames, $detailBuildingIds, $actorNames, $sources): array {
+                $canViewDetails = in_array($row->edificio_id, $detailBuildingIds, true);
+                $source = $sources->get($row->fuente);
+
+                return [
+                    'id' => $this->opaqueReference($row->edificio_id, $row->fuente, $row->id),
+                    'edificioId' => $row->edificio_id,
+                    'edificio' => $buildingNames[$row->edificio_id] ?? 'Edificio no disponible',
+                    'fuente' => $row->fuente,
+                    'fuenteLabel' => $source?->label() ?? $row->fuente,
+                    'tipo' => $row->tipo,
+                    'tipoLabel' => $source?->eventTypes()[$row->tipo] ?? $row->tipo,
+                    'actorTipo' => $row->actor_tipo,
+                    'actor' => $row->actor_tipo === 'sistema'
+                        ? 'Sistema'
+                        : ($canViewDetails ? ($actorNames[$row->actor_user_id] ?? 'Usuario no disponible') : null),
+                    'recursoTipo' => $this->resourceLabel($row->recurso_tipo),
+                    'recursoReferencia' => $canViewDetails
+                        ? $this->opaqueReference($row->edificio_id, $row->recurso_tipo, $row->recurso_id)
+                        : null,
+                    'detalleRestringido' => ! $canViewDetails,
+                    'ocurridoAt' => CarbonImmutable::parse($row->created_at)->utc()->toIso8601ZuluString(),
+                    'retencionDias' => $this->retentionDays($row->fuente, $row->tipo),
+                ];
+            })->all(),
+            'total' => $paginator->total(),
+            'currentPage' => $paginator->currentPage(),
+            'lastPage' => $paginator->lastPage(),
+            'perPage' => $paginator->perPage(),
+            'selectedBuildingIds' => $selectedBuildingIds,
+        ];
+    }
+
+    public function options(string $userId, array $selectedBuildingIds = []): array
+    {
+        $buildingIds = $this->access->buildingIds($userId, PermisoEdificio::GOBIERNO_VER);
+        $sourceBuildingIds = $selectedBuildingIds === []
+            ? $buildingIds
+            : array_values(array_intersect($selectedBuildingIds, $buildingIds));
+
+        return [
+            'edificios' => EdificioEloquentModel::query()->whereKey($buildingIds)->orderBy('nombre')
+                ->get(['id', 'nombre', 'estado', 'timezone'])
+                ->map(static fn (EdificioEloquentModel $building): array => [
+                    'id' => $building->id,
+                    'nombre' => $building->nombre,
+                    'estado' => $building->estado->value,
+                    'timezone' => $building->timezone,
+                ])->all(),
+            'fuentes' => collect($this->sources())
+                ->map(function (FuenteAuditoriaRead $source) use ($userId, $sourceBuildingIds): ?array {
+                    $eventTypes = $source->visibleEventTypes($userId, $sourceBuildingIds);
+
+                    return $eventTypes === [] ? null : [
+                        'codigo' => $source->code(),
+                        'nombre' => $source->label(),
+                        'tipos' => collect($eventTypes)->map(
+                            static fn (string $label, string $code): array => ['codigo' => $code, 'nombre' => $label]
+                        )->values()->all(),
+                    ];
+                })->filter()->values()->all(),
+            'politicaRetencion' => [
+                'configurada' => config('gobierno.retention_days', []) !== [],
+                'eliminacionAutomatica' => false,
+            ],
+        ];
+    }
+
+    /** @return list<FuenteAuditoriaRead> */
+    private function sources(): array
+    {
+        return [$this->accessEvents, $this->operationEvents, $this->maintenanceEvents, $this->commonAreaEvents, $this->communicationEvents];
+    }
+
+    /** @param list<string> $selectedBuildingIds @return array<string, mixed> */
+    private function emptyPage(array $selectedBuildingIds, int $perPage): array
+    {
+        return [
+            'items' => [], 'total' => 0, 'currentPage' => 1, 'lastPage' => 1,
+            'perPage' => $perPage, 'selectedBuildingIds' => $selectedBuildingIds,
+        ];
+    }
+
+    private function opaqueReference(string $buildingId, string $scope, mixed $id): string
+    {
+        return strtoupper(substr(hash_hmac(
+            'sha256',
+            'gobierno:v1:'.$buildingId.':'.$scope.':'.(string) $id,
+            (string) config('app.key'),
+        ), 0, 12));
+    }
+
+    private function resourceLabel(string $resource): string
+    {
+        return [
+            'usuario' => 'Usuario', 'invitacion' => 'Invitacion', 'acceso' => 'Acceso',
+            'orden_operativa' => 'Orden operativa', 'plan_mantenimiento' => 'Plan de mantenimiento',
+            'reserva' => 'Reserva', 'regla' => 'Regla', 'espacio_comun' => 'Espacio comun',
+            'comunicado' => 'Comunicado',
+        ][$resource] ?? 'Recurso';
+    }
+
+    private function retentionDays(string $source, string $type): ?int
+    {
+        $retention = config('gobierno.retention_days', []);
+        $value = $retention[$source.'.'.$type] ?? $retention[$source.'.*'] ?? $retention['*'] ?? null;
+
+        return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    private function usersTable(): string
+    {
+        return DB::connection()->getDriverName() === 'pgsql' ? 'public.users' : 'users';
+    }
+}

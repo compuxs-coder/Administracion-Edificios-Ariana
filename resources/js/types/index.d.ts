@@ -38,7 +38,7 @@ export interface EdificioFormData {
   responsable: string
 }
 
-export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'gestor_areas_comunes' | 'gestor_comunicacion' | 'consulta'
+export type RolEdificio = 'administrador' | 'gestor_propiedad' | 'gestor_finanzas' | 'gestor_operaciones' | 'gestor_areas_comunes' | 'gestor_comunicacion' | 'gestor_gobierno' | 'consulta'
 
 export interface RolAccesoEdificio {
   codigo: RolEdificio
@@ -1575,5 +1575,47 @@ export interface ComunicadoDetalle extends Omit<ComunicadoResumen, 'documentosCo
 
 export interface ComunicadosPaginados {
   data: ComunicadoResumen[]
+  meta: PaginationMeta
+}
+
+export type FuenteAuditoriaCodigo = 'accesos' | 'operaciones' | 'mantenimiento' | 'areas_comunes' | 'comunicacion'
+
+export interface EdificioAuditoriaOption {
+  id: string
+  nombre: string
+  estado: EstadoEdificio
+  timezone: string
+}
+
+export interface TipoEventoAuditoriaOption {
+  codigo: string
+  nombre: string
+}
+
+export interface FuenteAuditoriaOption {
+  codigo: FuenteAuditoriaCodigo
+  nombre: string
+  tipos: TipoEventoAuditoriaOption[]
+}
+
+export interface EventoAuditoria {
+  id: string
+  edificioId: string
+  edificio: string
+  fuente: FuenteAuditoriaCodigo
+  fuenteLabel: string
+  tipo: string
+  tipoLabel: string
+  actorTipo: 'usuario' | 'sistema'
+  actor: string | null
+  recursoTipo: string
+  recursoReferencia: string | null
+  detalleRestringido: boolean
+  ocurridoAt: string
+  retencionDias: number | null
+}
+
+export interface EventosAuditoriaPaginados {
+  data: EventoAuditoria[]
   meta: PaginationMeta
 }

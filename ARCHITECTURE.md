@@ -4,7 +4,7 @@
 
 Construir el sistema de administración de edificios por capacidades verificables, reutilizando autenticación e infraestructura existentes y retirando progresivamente los contextos heredados que no correspondan al dominio.
 
-Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva, `AreasComunes` administra espacios, reglas y reservas, y `Comunicacion` publica comunicados y coordina sus entregas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
+Edificios incluye su estructura física, Propiedad administra identidades compartidas, propietarios, residentes, titularidades y ocupaciones, Finanzas gestiona cuentas por cobrar, `Gastos` administra proveedores, contratos, gastos, cuentas por pagar y desembolsos, `Tesoreria` registra cuentas, movimientos y conciliaciones, `Operaciones` gestiona incidencias, solicitudes, mantenimiento correctivo y programación preventiva, `AreasComunes` administra espacios, reglas y reservas, `Comunicacion` publica comunicados y coordina sus entregas, y `Gobierno` consulta de forma unificada las bitácoras nativas autorizadas. Los demás contextos del dominio se incorporarán únicamente cuando tengan un caso de uso ejecutable.
 
 ## Decisión multiedificio
 
@@ -28,9 +28,9 @@ El diseño de los primeros casos de uso deberá cumplir estas reglas:
 ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
-2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes`, `gestor_comunicacion` y `consulta`.
-3. Los 50 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes y comunicación. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
-4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; `gestor_comunicacion` gestiona comunicados, documentos y entregas; los roles limitados sólo reciben las lecturas auxiliares mínimas y `consulta` dispone únicamente de lectura.
+2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes`, `gestor_comunicacion`, `gestor_gobierno` y `consulta`.
+3. Los 52 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes, comunicación y gobierno. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; `gestor_comunicacion` gestiona comunicados, documentos y entregas; `gestor_gobierno` consulta trazabilidad y las lecturas fuente mínimas; los roles limitados sólo reciben las lecturas auxiliares aprobadas. `consulta` no recibe Gobierno por defecto y requiere la asignación explícita de otro rol que lo autorice.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
 7. La aceptación puede reactivar una membresía revocada y reemplaza sus roles anteriores por el rol invitado.
@@ -284,6 +284,22 @@ ETAPA 19 incorpora el contexto `Comunicacion` como una vertical independiente qu
 13. Los permisos son `comunicados.ver`, `comunicados.gestionar`, `comunicados.publicar` y `comunicados.entregas.ver`. `administrador` y `gestor_comunicacion` reciben los cuatro; `consulta` sólo recibe lectura.
 14. El canal se abstrae mediante un contrato, pero ETAPA 19 implementa únicamente correo. No existen chat, respuestas, opt-out, portal de residentes, SMS, WhatsApp, push, campañas, programación futura, segmentación estructural ni automatizaciones desde otros módulos.
 
+## Gobierno y auditoría
+
+ETAPA 20 incorpora el contexto de lectura `Gobierno` para consultar actividad administrativa sin copiar ni reemplazar las bitácoras canónicas:
+
+1. El Centro de Auditoría Unificado compone con `UNION ALL` eventos de acceso, órdenes operativas, mantenimiento preventivo, áreas comunes y comunicación. No crea una tabla central, eventos nuevos ni backfills.
+2. Cada fuente dispone de un adaptador de lectura que normaliza fuente, tipo, actor, recurso y fecha. La identidad global del evento se representa hacia el cliente mediante una referencia HMAC opaca y aislada por edificio; los UUID internos y el JSON histórico no se exponen.
+3. La consulta puede abarcar varios edificios, pero todos deben pertenecer al conjunto autorizado por `gobierno.ver`. Cualquier identificador solicitado fuera de ese conjunto rechaza la petición completa; no se aplica filtrado silencioso.
+4. La visibilidad de cada fuente es la intersección entre `gobierno.ver` y su permiso nativo: miembros, operaciones, mantenimiento preventivo, áreas comunes o reservas, y comunicados. Los eventos de reservas conservan su permiso específico y las opciones de fuente y tipo se limitan a los edificios seleccionados.
+5. `gobierno.detalles.ver` permite mostrar el nombre del actor y una referencia opaca del recurso. Aun con ese permiso se omiten correos, identificaciones, destinatarios, cuerpos, descripciones, importes, JSON de cambios y otros datos libres o financieros.
+6. Los permisos son `gobierno.ver` y `gobierno.detalles.ver`. `administrador` y `gestor_gobierno` reciben ambos; el rol de Gobierno recibe además sólo las lecturas fuente necesarias. `consulta` y los demás gestores no reciben acceso por defecto.
+7. La retención se declara por clave `fuente.tipo`, `fuente.*` o `*` mediante configuración. Es metadato informativo: ETAPA 20 no elimina, anonimiza ni modifica registros históricos y no instala jobs de limpieza.
+8. La superficie HTTP contiene exclusivamente un `GET` autenticado y limitado por frecuencia. No existen comandos ni rutas para crear, actualizar o eliminar auditoría.
+9. La paginación global ordena de forma determinista por fecha, fuente e identificador. Los instantes se normalizan como ISO-8601 UTC con sufijo `Z` y la interfaz los presenta en la zona IANA de cada edificio. PostgreSQL y SQLite ejecutan el mismo read model, con una integración PostgreSQL local que siempre revierte sus fixtures.
+10. El plan real de PostgreSQL sobre las cinco tablas vacías ejecutó cinco escaneos secuenciales y ordenación en `0.190 ms`; no justifica índices nuevos. Los índices `(edificio_id, created_at, id)` se evaluarán sólo con volumen representativo y nuevos `EXPLAIN (ANALYZE, BUFFERS, WAL)`.
+11. Permanecen fuera los documentos financieros derivados, auditoría legal o forense, reconstrucción de cambios no registrados, exportaciones, reportes programados y eliminación automática. Las exportaciones se reservan para ETAPA 20.1.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -296,12 +312,12 @@ ETAPA 19 incorpora el contexto `Comunicacion` como una vertical independiente qu
 | Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16; planes, recurrencias y órdenes preventivas implementados en ETAPA 17 |
 | Áreas comunes | Espacios, reglas versionadas, horarios, reservas y bitácora implementados en ETAPA 18 |
 | Comunicación | Comunicados, documentos privados, snapshots de audiencia y entregas de correo mediante outbox implementados en ETAPA 19 |
-| Gobierno | Reportes, trazabilidad y auditoría |
+| Gobierno | Centro unificado de trazabilidad sobre bitácoras nativas implementado en ETAPA 20; reportes de gestión, fuentes financieras derivadas y exportaciones pendientes |
 
 ## Decisiones pendientes
 
 - Definir si la suma de alícuotas debe exigirse en 100% para distribuir sin diferencias de redondeo.
-- Definir requerimientos mínimos de auditoría y conservación documental.
+- Definir plazos formales y fundamentos legales de conservación por tipo de evento antes de habilitar cualquier eliminación o anonimización automática.
 
 ## Convención de contexto
 
@@ -353,6 +369,6 @@ El esquema privado es `administracion_edificios`. `public` permanece temporalmen
 
 Laravel y cada sesión PostgreSQL operan en UTC. Las zonas IANA de los edificios se aplican sólo al interpretar días y horarios del dominio; no alteran los instantes persistidos en columnas `timestamptz`.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación pertenecen al esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación pertenecen al esquema privado. Gobierno no añade tablas de eventos: consulta esas fuentes y sólo amplía los catálogos RBAC del esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

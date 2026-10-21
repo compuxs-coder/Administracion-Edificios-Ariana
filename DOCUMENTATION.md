@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas, mantenimiento preventivo, áreas comunes con reservas y comunicación por correo son módulos funcionales.
+El proyecto proporciona autenticación, autorización por edificio, frontend Inertia/Vue y persistencia PostgreSQL. Edificios, administración de accesos, estructura física, propietarios, residentes con ocupación histórica, cuentas por cobrar, proveedores, contratos, gastos, cuentas por pagar, desembolsos, conciliación de egresos en Tesorería, órdenes operativas, mantenimiento preventivo, áreas comunes con reservas, comunicación por correo y auditoría administrativa unificada son módulos funcionales.
 
 La arquitectura objetivo es multiedificio. Una misma instalación deberá administrar uno o varios edificios, con consultas y permisos delimitados por edificio.
 
@@ -167,6 +167,47 @@ php artisan schedule:work
 
 `QUEUE_CONNECTION` debe usar un backend durable en producción. `COMUNICACION_DOCUMENT_DISK` debe identificar un disco configurado con visibilidad `private` y sin `serve`; selecciona el disco para nuevas cargas, mientras los documentos existentes continúan usando el disco persistido en su fila. Si la migración encuentra documentos previos a esa columna, `COMUNICACION_DOCUMENT_LEGACY_DISK` debe declarar explícitamente dónde residen; sólo después de migrar puede cambiarse el disco de nuevas cargas. `COMUNICACION_DOCUMENT_LINK_MINUTES` define la vigencia de los enlaces, 43200 minutos por defecto. ETAPA 19 no incluye portal de residentes, opt-out, respuestas, chat, SMS, WhatsApp, push, programación de campañas, segmentación por estructura ni automatizaciones desde otros módulos.
 
+## ETAPA 20: Centro de Auditoría Unificado
+
+ETAPA 20 implementa `Gobierno` como un bounded context de sólo lectura. Reutiliza las bitácoras nativas y no crea una copia central:
+
+- `eventos_acceso_edificio` para membresías, invitaciones y roles.
+- `bitacora_orden_operativa` para órdenes, responsables, estados y evidencias.
+- `bitacora_plan_mantenimiento` para planes, ocurrencias y generación preventiva.
+- `bitacora_areas_comunes` para espacios, reglas y reservas.
+- `bitacora_comunicacion` para comunicados, documentos, publicación y reintentos.
+
+Cada fuente tiene un adaptador en `src/Gobierno/Infrastructure/ReadModels`. El repositorio unifica las ramas mediante `UNION ALL`, ordena por fecha, fuente e identificador y pagina el resultado completo. La aplicación no escribe en las tablas fuente ni incorpora rutas de mutación.
+
+Autorización:
+
+```text
+gobierno.ver
+gobierno.detalles.ver
+```
+
+`administrador` y `gestor_gobierno` reciben ambos permisos. El rol `gestor_gobierno` recibe también las lecturas nativas mínimas; `consulta` no recibe Gobierno por defecto. Para cada rama se exige además el permiso del módulo fuente. Una consulta multiedificio se rechaza si el usuario carece de `gobierno.ver` en cualquiera de los edificios solicitados.
+
+Protección de datos:
+
+- El frontend recibe una referencia HMAC de 12 caracteres, no el UUID del evento o recurso.
+- `gobierno.detalles.ver` controla el nombre del actor y la referencia opaca del recurso, cuyo HMAC queda aislado por edificio.
+- Nunca se envían `detalle`, roles históricos, correos, destinatarios, identificaciones, cuerpos, descripciones, errores de entrega ni importes.
+- Los eventos de reserva conservan el requisito adicional `reservas_areas_comunes.ver`.
+- La interfaz es una línea de tiempo Inertia de sólo lectura y no enlaza directamente recursos internos en esta etapa.
+- Los timestamps se entregan como ISO-8601 UTC con sufijo `Z` y Vue los presenta en la zona IANA del edificio correspondiente.
+
+Retención declarativa:
+
+```dotenv
+GOBIERNO_AUDITORIA_PAGE_SIZE=25
+GOBIERNO_RETENCION_EVENTOS='{"accesos.membresia_creada":3650,"comunicacion.*":1825}'
+```
+
+Las claves admiten `fuente.tipo`, `fuente.*` y `*`, en ese orden de precedencia. El valor positivo representa días declarados y se muestra como metadato. No existe eliminación, anonimización ni job de retención; los plazos legales continúan pendientes de aprobación formal.
+
+Fuera de ETAPA 20 quedan documentos financieros derivados, auditoría legal o forense, reconstrucción retroactiva, reportes programados y exportaciones. CSV/PDF se evaluará en ETAPA 20.1.
+
 ## Organización
 
 ```text
@@ -215,13 +256,14 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 50 permisos y administración de miembros |
+| `administrador` | Los 52 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
 | `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas y mantenimiento preventivo |
 | `gestor_areas_comunes` | Lectura de edificio y estructura, y gestión completa de espacios y reservas |
 | `gestor_comunicacion` | Lectura de edificio y estructura, y gestión completa de comunicados, documentos y entregas |
-| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes y comunicados |
+| `gestor_gobierno` | Lectura de edificio y de las cinco fuentes nativas, más consulta de trazabilidad y actores protegidos |
+| `consulta` | Lectura de edificio, estructura, propiedad, finanzas, comprobantes, gastos, cuentas por pagar, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes y comunicados; Gobierno requiere otro rol explícito |
 
 Permisos:
 
@@ -245,6 +287,7 @@ areas_comunes.ver              areas_comunes.gestionar             reservas_area
 reservas_areas_comunes.registrar reservas_areas_comunes.aprobar    reservas_areas_comunes.cancelar
 comunicados.ver                 comunicados.gestionar              comunicados.publicar
 comunicados.entregas.ver
+gobierno.ver                    gobierno.detalles.ver
 ```
 
 Reglas de seguridad:
@@ -293,6 +336,7 @@ Durante la transición:
 - Órdenes operativas, responsables históricos, evidencias, bitácora y consecutivos residen en `administracion_edificios`.
 - Espacios comunes, reglas, horarios, reservas, catálogo de zonas IANA y bitácora de áreas comunes residen en `administracion_edificios`.
 - Comunicados, documentos, entregas, destinatarios y bitácora de comunicación residen en `administracion_edificios`.
+- Gobierno no crea una tabla de auditoría: consulta las cinco bitácoras anteriores y sólo añade rol, permisos y asignaciones RBAC.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -306,6 +350,14 @@ Los `down()` de las migraciones `020` a `050` de Comunicación rechazan el rollb
 ```bash
 COMUNICACION_PG_INTEGRATION=1 vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php tests/Integration/ComunicacionPostgresMigrationTest.php
 ```
+
+El read model de Gobierno puede verificarse contra PostgreSQL local dentro de una transacción que revierte catálogo y fixtures:
+
+```bash
+GOBIERNO_PG_INTEGRATION=1 vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php tests/Integration/GobiernoPostgresReadModelTest.php
+```
+
+El `EXPLAIN (ANALYZE, BUFFERS, WAL)` inicial sobre las cinco tablas reales vacías produjo escaneos secuenciales, 25 kB de ordenación, `0.190 ms` de ejecución y cero WAL. No se añadieron índices especulativos. Debe repetirse con volumen representativo antes de aprobar índices orientados a `(edificio_id, created_at, id)`.
 
 No use `migrate:fresh`, `migrate:reset` ni `migrate:refresh` para esta transición. Pueden eliminar tablas de ambos esquemas y recrear las tablas históricas en una ubicación diferente. Tampoco debe ejecutarse un rollback que atraviese la migración que crea el esquema privado.
 
@@ -777,6 +829,25 @@ GET     /comunicacion/documentos/{documento}/entregas/{entrega}
 La ruta pública final sólo acepta una firma temporal válida y una pareja entrega-documento del mismo comunicado publicado o archivado. El `DELETE` de documentos existe únicamente mientras el comunicado es borrador; las restricciones de aplicación y base lo rechazan después de publicar.
 
 Cada carga registra la ruta pendiente antes de escribir el archivo y la retira atómicamente al confirmar sus metadatos. El retiro confirma en una sola transacción la eliminación de la fila y la ruta pendiente antes de intentar borrar el archivo. El scheduler ejecuta diariamente `comunicacion:limpiar-documentos-huerfanos --horas=24 --limite=500`; procesa únicamente esa bandeja durable, nunca enumera un bucket completo, y la espera mínima impide competir con una carga activa.
+
+## Módulo Gobierno
+
+`src/Gobierno` contiene el caso de uso del Centro de Auditoría, el contrato de repositorio, cinco adaptadores de lectura, el repositorio de paginación global, el controlador web y la migración RBAC. No contiene modelos Eloquent de eventos porque las bitácoras fuente siguen siendo canónicas.
+
+Ruta:
+
+```text
+GET    /gobierno/auditoria
+```
+
+Filtros GET admitidos:
+
+- `edificios[]`: uno o varios UUID autorizados; si se omite, usa todos los edificios con `gobierno.ver`.
+- `fuente`: `accesos`, `operaciones`, `mantenimiento`, `areas_comunes` o `comunicacion`.
+- `tipo`: código nativo de evento, siempre parametrizado y validado.
+- `page`: página positiva; el tamaño se fija mediante configuración entre 1 y 100.
+
+La ruta usa sesión, CSRF general para la aplicación, autorización backend y throttle de 120 solicitudes por minuto. No existen `POST`, `PUT`, `PATCH` o `DELETE` dentro de Gobierno.
 
 ## Módulos transitorios
 
