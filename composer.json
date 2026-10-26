@@ -6,8 +6,9 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "ext-bcmath": "*",
         "php": "^8.2",
+        "ext-bcmath": "*",
+        "dompdf/dompdf": "^3.1.6",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
@@ -45,7 +46,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php -d upload_max_filesize=12M -d post_max_size=13M artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php -d upload_max_filesize=12M -d post_max_size=13M artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan queue:work database-exports --queue=gobierno-exportaciones --tries=5 --timeout=600\" \"npm run dev\" --names=server,queue,exports,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",

@@ -1619,3 +1619,30 @@ export interface EventosAuditoriaPaginados {
   data: EventoAuditoria[]
   meta: PaginationMeta
 }
+
+export type EstadoExportacionAuditoria = 'pendiente' | 'procesando' | 'completada' | 'fallida' | 'expirada'
+export type FormatoExportacionAuditoria = 'csv' | 'pdf'
+
+export interface ExportacionAuditoriaResumen {
+  id: string
+  format: FormatoExportacionAuditoria
+  status: EstadoExportacionAuditoria
+  source: FuenteAuditoriaCodigo | null
+  eventType: string | null
+  from: string
+  until: string
+  processed: number
+  total: number | null
+  errorCode: string | null
+  expiresAt: string | null
+  createdAt: string
+  buildings: string[]
+  downloadable: boolean
+}
+
+export interface LimitesExportacionAuditoria {
+  maxRangeDays: number
+  csvMaxRows: number
+  pdfMaxRows: number
+  ttlHours: number
+}

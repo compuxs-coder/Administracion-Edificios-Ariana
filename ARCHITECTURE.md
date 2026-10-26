@@ -29,7 +29,7 @@ ETAPA 11 incorpora autorización RBAC con alcance estricto por edificio:
 
 1. Un usuario puede tener varios roles en un edificio y roles diferentes en edificios distintos.
 2. Los roles de sistema son `administrador`, `gestor_propiedad`, `gestor_finanzas`, `gestor_operaciones`, `gestor_areas_comunes`, `gestor_comunicacion`, `gestor_gobierno` y `consulta`.
-3. Los 52 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes, comunicación y gobierno. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
+3. Los 53 permisos se agrupan en edificio, miembros, estructura, propiedad, finanzas, gastos, desembolsos, tesorería, operaciones, mantenimiento preventivo, áreas comunes, comunicación y gobierno. El permiso efectivo es la unión de los permisos de los roles activos en ese edificio.
 4. `administrador` tiene acceso completo; `gestor_propiedad` gestiona estructura y propiedad; `gestor_finanzas` gestiona conceptos, lecturas, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería; `gestor_operaciones` gestiona órdenes y planes preventivos; `gestor_areas_comunes` gestiona espacios y reservas; `gestor_comunicacion` gestiona comunicados, documentos y entregas; `gestor_gobierno` consulta trazabilidad y las lecturas fuente mínimas; los roles limitados sólo reciben las lecturas auxiliares aprobadas. `consulta` no recibe Gobierno por defecto y requiere la asignación explícita de otro rol que lo autorice.
 5. Sólo `miembros.gestionar` permite invitar, asignar roles o revocar membresías. En la matriz vigente ese permiso pertenece exclusivamente a `administrador`, por lo que un rol limitado no puede elevar sus privilegios.
 6. Las invitaciones almacenan únicamente SHA-256 del token, normalizan el correo, vencen en 72 horas y sólo pueden aceptarse por un usuario autenticado con el correo invitado.
@@ -300,6 +300,17 @@ ETAPA 20 incorpora el contexto de lectura `Gobierno` para consultar actividad ad
 10. El plan real de PostgreSQL sobre las cinco tablas vacías ejecutó cinco escaneos secuenciales y ordenación en `0.190 ms`; no justifica índices nuevos. Los índices `(edificio_id, created_at, id)` se evaluarán sólo con volumen representativo y nuevos `EXPLAIN (ANALYZE, BUFFERS, WAL)`.
 11. Permanecen fuera los documentos financieros derivados, auditoría legal o forense, reconstrucción de cambios no registrados, exportaciones, reportes programados y eliminación automática. Las exportaciones se reservan para ETAPA 20.1.
 
+ETAPA 20.1 añade exportaciones sin convertir Gobierno en una copia de las bitácoras:
+
+1. `gobierno.exportar` se evalúa en todos los edificios al solicitar, procesar y descargar. Además, la descarga exige conservar cada permiso fuente y `gobierno.detalles.ver` cuando el archivo capturó detalles.
+2. La solicitud congela alcance, nombres, zonas IANA y permisos efectivos. Sólo admite límites UTC con precisión de segundos; si el rango alcanza el presente, `corte_at` conserva el inicio del segundo UTC en curso como límite superior exclusivo, por lo que incluye completo el último segundo cerrado aunque una fuente guarde microsegundos. El corte limita el tiempo, pero no se considera un snapshot: al comenzar la generación se abre una única transacción de lectura consistente (`REPEATABLE READ READ ONLY` en PostgreSQL) compartida por todos los chunks y proyecciones, con cursor keyset `(created_at DESC, fuente ASC, id DESC)`.
+3. `exportaciones_auditoria` modela `pendiente -> procesando -> completada|fallida -> expirada`; claims transaccionales, lease token y jobs únicos cercan workers duplicados o tardíos. El scheduler recupera pendientes y leases vencidos.
+4. CSV escribe por streaming hasta 50.000 filas mediante `fputcsv` y neutraliza prefijos interpretables como fórmulas. PDF limita 2.000 eventos y renderiza una plantilla cerrada con Dompdf sin red, JavaScript ni PHP.
+5. Los archivos viven en un disco privado no servido. Antes de completar se verifican tamaño y SHA-256; la descarga transmite una copia temporal verificada desde un directorio privado administrado, con `private, no-store`, y registra el evento sin conservar detalles de error.
+6. La vigencia máxima es 24 horas. Una bandeja durable de limpieza, ejecutada cada cinco minutos, cerca leases vencidos y conserva sus intents parciales durante una gracia mayor al timeout antes de retirar residuos; la misma tarea elimina archivos expirados y temporales privados huérfanos por antigüedad. El lease mínimo supera al timeout completo del worker, por lo que la transacción de snapshot no necesita escribir heartbeats; se renueva al terminar esa lectura y alrededor de las fases finales. El historial de solicitud, procesamiento, descarga, expiración y eliminación es append-only.
+7. La autorización final bloquea en orden los edificios, la membresía, las asignaciones y los permisos de sus roles, igual que las mutaciones RBAC de la aplicación. Completar o autorizar una descarga queda así serializado frente a esas revocaciones. El commit que registra `descargada` es el punto de autorización: una revocación posterior no puede cancelar bytes de una respuesta que ya está en tránsito, y escrituras RBAC directas que omitan este protocolo quedan fuera de la garantía.
+8. PostgreSQL y SQLite protegen rango, forma, transiciones, alcance sellado y bitácora mediante constraints o triggers equivalentes. El primer `down()` verifica historial y reasignaciones del permiso antes de retirar cualquier protección, de modo que un rollback bloqueado falla sin cambios parciales. Las tablas operativas no contienen eventos fuente ni contenido sensible.
+
 ## Capacidades previstas
 
 | Área | Conceptos que deben diseñarse en conjunto |
@@ -312,7 +323,7 @@ ETAPA 20 incorpora el contexto de lectura `Gobierno` para consultar actividad ad
 | Operaciones | Incidencias, solicitudes, responsables, flujo, evidencias y bitácora implementados en ETAPA 16; planes, recurrencias y órdenes preventivas implementados en ETAPA 17 |
 | Áreas comunes | Espacios, reglas versionadas, horarios, reservas y bitácora implementados en ETAPA 18 |
 | Comunicación | Comunicados, documentos privados, snapshots de audiencia y entregas de correo mediante outbox implementados en ETAPA 19 |
-| Gobierno | Centro unificado de trazabilidad sobre bitácoras nativas implementado en ETAPA 20; reportes de gestión, fuentes financieras derivadas y exportaciones pendientes |
+| Gobierno | Centro unificado de trazabilidad implementado en ETAPA 20 y exportaciones CSV/PDF seguras en ETAPA 20.1; reportes de gestión y fuentes financieras derivadas pendientes |
 
 ## Decisiones pendientes
 
@@ -369,6 +380,6 @@ El esquema privado es `administracion_edificios`. `public` permanece temporalmen
 
 Laravel y cada sesión PostgreSQL operan en UTC. Las zonas IANA de los edificios se aplican sólo al interpretar días y horarios del dominio; no alteran los instantes persistidos en columnas `timestamptz`.
 
-Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación pertenecen al esquema privado. Gobierno no añade tablas de eventos: consulta esas fuentes y sólo amplía los catálogos RBAC del esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
+Los módulos nuevos deben evitar nombres que dupliquen tablas heredadas en `public`. Las tablas de Edificio, acceso (`roles`, `permisos`, asignaciones, invitaciones y eventos), Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación pertenecen al esquema privado. Gobierno no añade tablas de eventos: consulta esas fuentes y sólo amplía RBAC y el ciclo operativo de exportaciones dentro del esquema privado. Cualquier modificación posterior de una tabla heredada debe considerar su esquema de forma explícita.
 
 El nombre configurado en `DB_SCHEMA` es persistente después de ejecutar la migración que crea el esquema. Cambiarlo exige una migración y un despliegue controlados.

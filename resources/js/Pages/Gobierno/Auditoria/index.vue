@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { computed, ref, watch } from 'vue'
+import { router, usePoll } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import type {
   EdificioAuditoriaOption,
   EventosAuditoriaPaginados,
+  ExportacionAuditoriaResumen,
+  FormatoExportacionAuditoria,
   FuenteAuditoriaCodigo,
-  FuenteAuditoriaOption
+  FuenteAuditoriaOption,
+  LimitesExportacionAuditoria
 } from '../../../types'
+import { exportStatusLabel, hasActiveExports, utcInputToIso } from './exportacion'
 
 const props = defineProps<{
   eventos: EventosAuditoriaPaginados
@@ -15,12 +19,27 @@ const props = defineProps<{
   fuentes: FuenteAuditoriaOption[]
   politicaRetencion: { configurada: boolean, eliminacionAutomatica: boolean }
   filters: { edificios: string[], fuente?: FuenteAuditoriaCodigo | null, tipo?: string | null }
+  exportaciones: ExportacionAuditoriaResumen[]
+  alcanceVigente: boolean
+  huellaAlcance: string
+  puedeExportar: boolean
+  limitesExportacion: LimitesExportacionAuditoria
 }>()
 
 const edificiosSeleccionados = ref([...props.filters.edificios])
 const fuente = ref<FuenteAuditoriaCodigo | ''>(props.filters.fuente ?? '')
 const tipo = ref(props.filters.tipo ?? '')
 const loading = ref(false)
+const exporting = ref(false)
+const exportErrors = ref<Record<string, string>>({})
+const formatoExportacion = ref<FormatoExportacionAuditoria>('csv')
+const now = new Date()
+const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000))
+const desdeExportacion = ref(sevenDaysAgo.toISOString().slice(0, 16))
+const hastaExportacion = ref(now.toISOString().slice(0, 16))
+const idempotencyKey = ref(crypto.randomUUID())
+const acceptedScopeFingerprint = ref(props.huellaAlcance)
+const scopeInvalidated = ref(false)
 const fuenteSeleccionada = computed(() => props.fuentes.find(item => item.codigo === fuente.value))
 const tipos = computed(() => fuenteSeleccionada.value?.tipos ?? [])
 const edificiosItems = computed(() => props.edificios.map(item => ({ label: item.nombre, value: item.id })))
@@ -29,6 +48,14 @@ const fuentesItems = computed(() => [
   { label: 'Todas las fuentes', value: '' },
   ...props.fuentes.map(item => ({ label: item.nombre, value: item.codigo }))
 ])
+const scopeVisible = computed(() => props.alcanceVigente && !scopeInvalidated.value)
+const activeExports = computed(() => scopeVisible.value && hasActiveExports(props.exportaciones))
+const firstExportError = computed(() => Object.values(exportErrors.value)[0] ?? null)
+const canRequestExport = computed(() => props.puedeExportar
+  && edificiosSeleccionados.value.length > 0
+  && desdeExportacion.value !== ''
+  && hastaExportacion.value !== ''
+  && !exporting.value)
 
 const sourceColor: Record<FuenteAuditoriaCodigo, 'primary' | 'info' | 'success' | 'warning' | 'neutral'> = {
   accesos: 'primary',
@@ -37,6 +64,27 @@ const sourceColor: Record<FuenteAuditoriaCodigo, 'primary' | 'info' | 'success' 
   areas_comunes: 'info',
   comunicacion: 'neutral'
 }
+const statusColor: Record<ExportacionAuditoriaResumen['status'], 'neutral' | 'warning' | 'info' | 'success' | 'error'> = {
+  pendiente: 'warning',
+  procesando: 'info',
+  completada: 'success',
+  fallida: 'error',
+  expirada: 'neutral'
+}
+
+usePoll(5000, {
+  only: ['alcanceVigente', 'huellaAlcance', 'puedeExportar']
+}, { keepAlive: false })
+const exportPoll = usePoll(5500, {
+  only: ['exportaciones']
+}, { autoStart: false, keepAlive: false })
+watch(activeExports, active => active ? exportPoll.start() : exportPoll.stop(), { immediate: true })
+watch(() => props.huellaAlcance, fingerprint => {
+  if (fingerprint !== acceptedScopeFingerprint.value) scopeInvalidated.value = true
+})
+watch([formatoExportacion, desdeExportacion, hastaExportacion, edificiosSeleccionados, fuente, tipo], () => {
+  idempotencyKey.value = crypto.randomUUID()
+}, { deep: true })
 
 const reload = (page = 1, replace = false) => router.get(route('gobierno.auditoria.index'), {
   edificios: edificiosSeleccionados.value,
@@ -48,6 +96,10 @@ const reload = (page = 1, replace = false) => router.get(route('gobierno.auditor
   preserveScroll: true,
   replace,
   onStart: () => { loading.value = true },
+  onSuccess: () => {
+    acceptedScopeFingerprint.value = props.huellaAlcance
+    scopeInvalidated.value = false
+  },
   onFinish: () => { loading.value = false }
 })
 
@@ -74,6 +126,43 @@ const formatDate = (value: string, buildingId: string) => new Intl.DateTimeForma
 const retentionLabel = (days: number | null) => days === null
   ? 'Retención sin definir'
   : `Retención declarada: ${days} días`
+
+const requestExport = () => {
+  if (!canRequestExport.value) return
+  router.post(route('gobierno.auditoria.exportaciones.store'), {
+    idempotency_key: idempotencyKey.value,
+    formato: formatoExportacion.value,
+    edificios: edificiosSeleccionados.value,
+    fuente: fuente.value || null,
+    tipo: tipo.value || null,
+    desde_utc: utcInputToIso(desdeExportacion.value),
+    hasta_utc: utcInputToIso(hastaExportacion.value)
+  }, {
+    preserveScroll: true,
+    onStart: () => {
+      exporting.value = true
+      exportErrors.value = {}
+    },
+    onSuccess: () => {
+      idempotencyKey.value = crypto.randomUUID()
+    },
+    onError: errors => {
+      exportErrors.value = errors
+    },
+    onFinish: () => { exporting.value = false }
+  })
+}
+
+const downloadExport = (id: string) => window.location.assign(route('gobierno.auditoria.exportaciones.download', id))
+const formatUtcDate = (value: string) => new Intl.DateTimeFormat('es-EC', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'UTC'
+}).format(new Date(value))
+
+const exportFailureLabel = (code: string | null) => code === 'LimiteFilasExportacionExcedido'
+  ? 'El resultado superó el límite del formato.'
+  : 'No fue posible generar el archivo. Intente nuevamente.'
 </script>
 
 <template>
@@ -82,13 +171,27 @@ const retentionLabel = (days: number | null) => days === null
       <UDashboardNavbar title="Centro de auditoría">
         <template #leading><UDashboardSidebarCollapse /></template>
         <template #right>
-          <UBadge color="neutral" icon="i-lucide-lock-keyhole" label="Sólo lectura" variant="subtle" />
+          <UBadge
+            :color="puedeExportar ? 'primary' : 'neutral'"
+            :icon="puedeExportar ? 'i-lucide-file-down' : 'i-lucide-lock-keyhole'"
+            :label="puedeExportar ? 'Exportación controlada' : 'Sólo lectura'"
+            variant="subtle"
+          />
         </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
       <div class="flex h-full flex-col gap-5 p-4 sm:p-6">
+        <UAlert
+          v-if="!scopeVisible"
+          color="warning"
+          icon="i-lucide-shield-alert"
+          title="El alcance dejó de estar autorizado"
+          description="Los datos anteriores se ocultaron porque cambió su acceso. Vuelva a abrir el Centro de auditoría para cargar el alcance vigente."
+          variant="subtle"
+        />
+        <template v-else>
         <section class="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-default to-default p-5 sm:p-7">
           <div class="max-w-3xl">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Gobierno y trazabilidad</p>
@@ -125,6 +228,98 @@ const retentionLabel = (days: number | null) => days === null
             </UFormField>
           </div>
         </UCard>
+
+        <section class="grid overflow-hidden rounded-2xl border border-default bg-default lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,.95fr)]">
+          <div class="border-b border-default p-5 lg:border-b-0 lg:border-r sm:p-6">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Salida verificable</p>
+                <h2 class="mt-2 text-lg font-semibold text-highlighted">Preparar exportación</h2>
+                <p class="mt-1 text-sm leading-6 text-muted">El alcance replica los filtros visibles. Las fechas se interpretan en UTC y el archivo privado expira en {{ limitesExportacion.ttlHours }} horas.</p>
+              </div>
+              <div class="rounded-xl bg-primary/10 p-3 text-primary"><UIcon name="i-lucide-shield-check" class="size-5" /></div>
+            </div>
+
+            <UAlert
+              v-if="!puedeExportar"
+              class="mt-5"
+              color="warning"
+              icon="i-lucide-lock"
+              title="Permiso requerido en todo el alcance"
+              description="Seleccione únicamente edificios donde tenga gobierno.exportar."
+              variant="subtle"
+            />
+            <UAlert v-if="firstExportError" class="mt-5" color="error" icon="i-lucide-circle-alert" :description="firstExportError" variant="subtle" />
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+              <UFormField label="Desde (UTC)">
+                <UInput v-model="desdeExportacion" class="w-full" type="datetime-local" :disabled="!puedeExportar || exporting" />
+              </UFormField>
+              <UFormField label="Hasta (UTC)">
+                <UInput v-model="hastaExportacion" class="w-full" type="datetime-local" :disabled="!puedeExportar || exporting" />
+              </UFormField>
+            </div>
+            <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <UFormField label="Formato" class="sm:w-52">
+                <USelect
+                  v-model="formatoExportacion"
+                  class="w-full"
+                  :items="[{ label: `CSV · hasta ${limitesExportacion.csvMaxRows.toLocaleString('es-EC')}`, value: 'csv' }, { label: `PDF · hasta ${limitesExportacion.pdfMaxRows.toLocaleString('es-EC')}`, value: 'pdf' }]"
+                  :disabled="!puedeExportar || exporting"
+                />
+              </UFormField>
+              <UButton
+                icon="i-lucide-file-clock"
+                label="Encolar exportación"
+                :loading="exporting"
+                :disabled="!canRequestExport"
+                @click="requestExport"
+              />
+            </div>
+            <p class="mt-4 text-xs text-muted">Rango máximo: {{ limitesExportacion.maxRangeDays }} días. La generación y la descarga vuelven a validar sus permisos.</p>
+          </div>
+
+          <div class="bg-elevated/35 p-5 sm:p-6" aria-live="polite">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Actividad reciente</p>
+                <h2 class="mt-2 text-lg font-semibold text-highlighted">Archivos y cola</h2>
+              </div>
+              <UBadge v-if="activeExports" color="info" icon="i-lucide-loader-circle" label="Actualizando" variant="subtle" />
+            </div>
+            <div v-if="exportaciones.length" class="mt-5 space-y-3">
+              <article v-for="item in exportaciones.slice(0, 5)" :key="item.id" class="rounded-xl border border-default bg-default/80 p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <UBadge :color="statusColor[item.status]" :label="exportStatusLabel[item.status]" variant="subtle" />
+                      <span class="font-mono text-xs font-semibold uppercase text-muted">{{ item.format }}</span>
+                    </div>
+                    <p class="mt-2 truncate text-sm font-medium text-highlighted">{{ item.buildings.join(', ') }}</p>
+                    <p class="mt-1 text-xs text-muted">{{ formatUtcDate(item.from) }} – {{ formatUtcDate(item.until) }} UTC</p>
+                    <p v-if="item.status === 'procesando'" class="mt-2 text-xs text-info">{{ item.processed.toLocaleString('es-EC') }} evento(s) procesado(s)</p>
+                    <p v-if="item.status === 'fallida'" class="mt-2 text-xs text-error">{{ exportFailureLabel(item.errorCode) }}</p>
+                    <p v-if="item.downloadable && item.expiresAt" class="mt-2 text-xs text-muted">Disponible hasta {{ formatUtcDate(item.expiresAt) }} UTC</p>
+                  </div>
+                  <UButton
+                    v-if="item.downloadable"
+                    aria-label="Descargar exportación"
+                    color="neutral"
+                    icon="i-lucide-download"
+                    size="sm"
+                    variant="outline"
+                    @click="downloadExport(item.id)"
+                  />
+                </div>
+              </article>
+            </div>
+            <div v-else class="mt-5 rounded-xl border border-dashed border-default px-5 py-8 text-center">
+              <UIcon name="i-lucide-inbox" class="mx-auto size-7 text-muted" />
+              <p class="mt-2 text-sm font-medium text-highlighted">Aún no hay exportaciones</p>
+              <p class="mt-1 text-xs text-muted">Las solicitudes aparecerán aquí sin exponer rutas internas.</p>
+            </div>
+          </div>
+        </section>
 
         <div class="flex flex-col gap-3 rounded-xl border border-default bg-elevated/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-2 text-muted">
@@ -175,6 +370,7 @@ const retentionLabel = (days: number | null) => days === null
             <UButton color="neutral" label="Siguiente" variant="outline" :disabled="eventos.meta.currentPage >= eventos.meta.lastPage || loading" @click="reload(eventos.meta.currentPage + 1)" />
           </div>
         </div>
+        </template>
       </div>
     </template>
   </UDashboardPanel>

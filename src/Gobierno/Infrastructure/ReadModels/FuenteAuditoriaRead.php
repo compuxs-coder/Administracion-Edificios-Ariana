@@ -33,6 +33,18 @@ abstract class FuenteAuditoriaRead
         return $this->visibleBuildingIds($userId, $buildingIds) === [] ? [] : $this->eventTypes();
     }
 
+    /** @return list<string> */
+    public function visiblePermissionCodes(string $userId, string $buildingId, ?string $eventType): array
+    {
+        if ($eventType !== null && ! array_key_exists($eventType, $this->eventTypes())) {
+            return [];
+        }
+
+        return $this->authorizedBuildingIds($userId, [$buildingId], $this->permission()) === []
+            ? []
+            : [$this->permission()->value];
+    }
+
     abstract protected function permission(): PermisoEdificio;
 
     /** @param list<string> $buildingIds @return list<string> */

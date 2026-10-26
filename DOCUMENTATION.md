@@ -206,7 +206,36 @@ GOBIERNO_RETENCION_EVENTOS='{"accesos.membresia_creada":3650,"comunicacion.*":18
 
 Las claves admiten `fuente.tipo`, `fuente.*` y `*`, en ese orden de precedencia. El valor positivo representa días declarados y se muestra como metadato. No existe eliminación, anonimización ni job de retención; los plazos legales continúan pendientes de aprobación formal.
 
-Fuera de ETAPA 20 quedan documentos financieros derivados, auditoría legal o forense, reconstrucción retroactiva, reportes programados y exportaciones. CSV/PDF se evaluará en ETAPA 20.1.
+Fuera de ETAPA 20 quedan documentos financieros derivados, auditoría legal o forense, reconstrucción retroactiva y reportes programados.
+
+## ETAPA 20.1: Exportaciones seguras
+
+La exportación reutiliza exactamente las cinco ramas minimizadas del Centro de Auditoría. No copia sus bitácoras ni incluye el JSON histórico. El nuevo permiso `gobierno.exportar` se concede inicialmente a `administrador` y `gestor_gobierno`, siempre con alcance de edificio.
+
+Reglas operativas:
+
+- El rango es UTC explícito, semiabierto `[desde, hasta)`, máximo 90 días y sólo admite precisión de segundos. Fracciones no nulas se rechazan; `.000000` se normaliza explícitamente. Si el rango alcanza el presente, `corte_at` es el inicio del segundo UTC en curso y se aplica como límite exclusivo, incluyendo completo el último segundo cerrado aunque la fuente conserve microsegundos.
+- CSV admite 50.000 filas y escribe por chunks; PDF admite 2.000 eventos y usa Dompdf 3.1 sin acceso remoto, JavaScript, PHP o HTML proporcionado por usuarios.
+- La solicitud persiste snapshots de edificio, zona, permisos fuente y visibilidad de detalle. El corte temporal no se usa como sustituto de aislamiento: al comenzar la generación, PostgreSQL abre una sola transacción `REPEATABLE READ READ ONLY` para todos los chunks y SQLite una sola transacción de snapshot. La garantía es consistencia durante la generación, no visibilidad MVCC congelada al solicitar. Procesamiento y descarga exigen la intersección entre el alcance capturado y los permisos actuales.
+- La clave UUID de idempotencia se normaliza y es única por solicitante. Dos solicitudes iguales reutilizan la fila; la misma clave con otro payload se rechaza.
+- El job reclama la fila con bloqueo, token de lease e intento. El lease mínimo supera los 600 segundos del timeout, cubre completa la lectura consistente sin heartbeats dentro de su transacción de sólo lectura y se renueva al terminarla y alrededor del render, almacenamiento y hashing; un token anterior o vencido no puede avanzar progreso ni completar.
+- `audit-exports` es privado, no servido y falla mediante excepción. Cada archivo se verifica por tamaño y SHA-256 antes de completar y se copia a un directorio temporal privado administrado para descargar.
+- La respuesta usa `private, no-store`, `nosniff` y CSP sandbox. Nunca expone disco, ruta, hash o errores internos al frontend.
+- El polling revalida una huella opaca de los permisos que afectan la visibilidad; si cambia, la interfaz oculta inmediatamente los eventos ya renderizados hasta realizar una carga completa autorizada.
+- La vigencia máxima es 24 horas. El scheduler expira estados, procesa `limpieza_archivos_exportacion` y elimina temporales privados huérfanos por antigüedad cada cinco minutos. Los intents parciales de un lease vencido se conservan durante una gracia mayor al timeout antes de retirar el objeto, evitando que un worker tardío deje un archivo sin rastreo.
+- `bitacora_exportacion_auditoria` es append-only y registra estados, descargas y limpieza sin filtros, contenido o mensajes de excepción.
+- La autorización final bloquea los mismos edificios y filas RBAC que las mutaciones de membresías y roles. Una revocación iniciada antes gana el bloqueo y deniega; si empieza después del commit de `descargada`, no cancela una respuesta ya autorizada y en tránsito. Cambios directos de permisos que no respeten ese protocolo transaccional quedan fuera de esta garantía.
+- El rollback comprueba historial y concesiones externas de `gobierno.exportar` en el primer `down()`, antes de retirar triggers o constraints. Si existe un bloqueador, conserva tablas, permiso y protecciones sin modificaciones parciales.
+
+Operación requerida:
+
+```bash
+php artisan queue:work database-exports --queue=gobierno-exportaciones --tries=5 --timeout=600
+php artisan schedule:work
+php artisan gobierno:limpiar-exportaciones --limite=500
+```
+
+Los límites se configuran con las variables `GOBIERNO_EXPORT_*` de `.env.example`. El worker general no consume la conexión `database-exports`; ambos workers deben estar supervisados en producción.
 
 ## Organización
 
@@ -256,7 +285,7 @@ Roles de sistema:
 
 | Rol | Alcance |
 |---|---|
-| `administrador` | Los 52 permisos y administración de miembros |
+| `administrador` | Los 53 permisos y administración de miembros |
 | `gestor_propiedad` | Lectura de edificio y gestión de estructura, propiedad y ocupación |
 | `gestor_finanzas` | Lecturas necesarias y gestión de conceptos, cargos, pagos, comprobantes, evidencias, proveedores, gastos, desembolsos y tesorería |
 | `gestor_operaciones` | Lectura de edificio y estructura, y gestión completa de órdenes operativas y mantenimiento preventivo |
@@ -287,7 +316,7 @@ areas_comunes.ver              areas_comunes.gestionar             reservas_area
 reservas_areas_comunes.registrar reservas_areas_comunes.aprobar    reservas_areas_comunes.cancelar
 comunicados.ver                 comunicados.gestionar              comunicados.publicar
 comunicados.entregas.ver
-gobierno.ver                    gobierno.detalles.ver
+gobierno.ver                    gobierno.detalles.ver             gobierno.exportar
 ```
 
 Reglas de seguridad:
@@ -336,7 +365,7 @@ Durante la transición:
 - Órdenes operativas, responsables históricos, evidencias, bitácora y consecutivos residen en `administracion_edificios`.
 - Espacios comunes, reglas, horarios, reservas, catálogo de zonas IANA y bitácora de áreas comunes residen en `administracion_edificios`.
 - Comunicados, documentos, entregas, destinatarios y bitácora de comunicación residen en `administracion_edificios`.
-- Gobierno no crea una tabla de auditoría: consulta las cinco bitácoras anteriores y sólo añade rol, permisos y asignaciones RBAC.
+- Gobierno no crea una tabla central de auditoría: consulta las cinco bitácoras anteriores y sólo añade RBAC y tablas operativas de exportación.
 - No se movieron ni duplicaron datos históricos.
 
 `DB_SCHEMA` debe conservar el mismo valor después de aplicar la migración. Un cambio posterior requiere una migración nueva que cree y verifique el nuevo esquema. Los comandos de migración deben usar PostgreSQL como conexión predeterminada; no debe alternarse el driver con `--database`, porque Laravel utiliza un único nombre global para el repositorio de migraciones.
@@ -351,7 +380,7 @@ Los `down()` de las migraciones `020` a `050` de Comunicación rechazan el rollb
 COMUNICACION_PG_INTEGRATION=1 vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php tests/Integration/ComunicacionPostgresMigrationTest.php
 ```
 
-El read model de Gobierno puede verificarse contra PostgreSQL local dentro de una transacción que revierte catálogo y fixtures:
+El read model, los guards y la generación CSV de Gobierno pueden verificarse contra PostgreSQL local dentro de una transacción que revierte catálogo y fixtures:
 
 ```bash
 GOBIERNO_PG_INTEGRATION=1 vendor/bin/phpunit --no-configuration --bootstrap vendor/autoload.php tests/Integration/GobiernoPostgresReadModelTest.php
@@ -832,12 +861,14 @@ Cada carga registra la ruta pendiente antes de escribir el archivo y la retira a
 
 ## Módulo Gobierno
 
-`src/Gobierno` contiene el caso de uso del Centro de Auditoría, el contrato de repositorio, cinco adaptadores de lectura, el repositorio de paginación global, el controlador web y la migración RBAC. No contiene modelos Eloquent de eventos porque las bitácoras fuente siguen siendo canónicas.
+`src/Gobierno` contiene el Centro de Auditoría, cinco adaptadores de lectura y el ciclo de exportaciones. No contiene modelos Eloquent de eventos fuente porque esas bitácoras siguen siendo canónicas; sus modelos propios representan solicitudes, alcance, trazabilidad y limpieza de archivos.
 
 Ruta:
 
 ```text
 GET    /gobierno/auditoria
+POST   /gobierno/auditoria/exportaciones
+GET    /gobierno/auditoria/exportaciones/{exportacion}/descargar
 ```
 
 Filtros GET admitidos:
@@ -847,7 +878,7 @@ Filtros GET admitidos:
 - `tipo`: código nativo de evento, siempre parametrizado y validado.
 - `page`: página positiva; el tamaño se fija mediante configuración entre 1 y 100.
 
-La ruta usa sesión, CSRF general para la aplicación, autorización backend y throttle de 120 solicitudes por minuto. No existen `POST`, `PUT`, `PATCH` o `DELETE` dentro de Gobierno.
+Las rutas usan sesión, CSRF, autorización backend y throttles separados. El único `POST` crea una solicitud durable e idempotente; no modifica bitácoras fuente. La descarga sólo sirve una copia temporal después de revalidar alcance e integridad.
 
 ## Módulos transitorios
 
@@ -867,6 +898,10 @@ Las páginas Vue de Factura incompatibles con su API y los dashboards de demostr
 composer validate
 php artisan about
 php artisan route:list
+php artisan test
+npm run typecheck
+npm run test:unit
+npm run build
 php artisan migrate:status
 php artisan test
 npm run build

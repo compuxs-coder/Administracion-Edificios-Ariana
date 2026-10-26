@@ -59,6 +59,26 @@ final class AreasComunesAuditoriaRead extends FuenteAuditoriaRead
         return $visible;
     }
 
+    public function visiblePermissionCodes(string $userId, string $buildingId, ?string $eventType): array
+    {
+        if ($eventType !== null && ! array_key_exists($eventType, $this->eventTypes())) {
+            return [];
+        }
+        $permissions = [];
+        $reservationOnly = $eventType !== null && in_array($eventType, self::RESERVATION_EVENTS, true);
+        $areaOnly = $eventType !== null && ! $reservationOnly;
+        if (! $reservationOnly
+            && $this->authorizedBuildingIds($userId, [$buildingId], PermisoEdificio::AREAS_COMUNES_VER) !== []) {
+            $permissions[] = PermisoEdificio::AREAS_COMUNES_VER->value;
+        }
+        if (! $areaOnly
+            && $this->authorizedBuildingIds($userId, [$buildingId], PermisoEdificio::RESERVAS_AREAS_COMUNES_VER) !== []) {
+            $permissions[] = PermisoEdificio::RESERVAS_AREAS_COMUNES_VER->value;
+        }
+
+        return $permissions;
+    }
+
     public function query(string $userId, array $buildingIds, ?string $eventType): ?Builder
     {
         $areaBuildings = $this->authorizedBuildingIds($userId, $buildingIds, PermisoEdificio::AREAS_COMUNES_VER);

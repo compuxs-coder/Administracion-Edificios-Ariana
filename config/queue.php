@@ -44,6 +44,15 @@ return [
             'after_commit' => false,
         ],
 
+        'database-exports' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => env('GOBIERNO_EXPORT_QUEUE', 'gobierno-exportaciones'),
+            'retry_after' => max(660, (int) env('GOBIERNO_EXPORT_QUEUE_RETRY_AFTER', 900)),
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

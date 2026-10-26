@@ -57,7 +57,9 @@ use Src\Gastos\Infrastructure\Repositories\EloquentDesembolsoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentGastoRepository;
 use Src\Gastos\Infrastructure\Repositories\EloquentProveedorRepository;
 use Src\Gobierno\Domain\Contracts\AuditoriaRepositoryInterface;
+use Src\Gobierno\Domain\Contracts\ExportacionAuditoriaRepositoryInterface;
 use Src\Gobierno\Infrastructure\Repositories\EloquentAuditoriaRepository;
+use Src\Gobierno\Infrastructure\Repositories\EloquentExportacionAuditoriaRepository;
 use Src\Operaciones\Domain\Contracts\EstructuraMiembrosOperacionesReadInterface;
 use Src\Operaciones\Domain\Contracts\MantenimientoPreventivoRepositoryInterface;
 use Src\Operaciones\Domain\Contracts\OrdenOperativaRepositoryInterface;
@@ -146,6 +148,7 @@ class BoundedContextServiceProvider extends ServiceProvider
         $this->app->bind(ComunicacionRepositoryInterface::class, EloquentComunicacionRepository::class);
         $this->app->bind(CanalNotificacionComunicadoInterface::class, CorreoComunicadoChannel::class);
         $this->app->bind(AuditoriaRepositoryInterface::class, EloquentAuditoriaRepository::class);
+        $this->app->bind(ExportacionAuditoriaRepositoryInterface::class, EloquentExportacionAuditoriaRepository::class);
         $this->app->bind(FacturaRepositoryInterface::class, EloquentFacturaRepository::class);
     }
 

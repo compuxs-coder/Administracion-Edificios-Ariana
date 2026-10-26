@@ -56,4 +56,5 @@ enum PermisoEdificio: string
     case COMUNICADOS_ENTREGAS_VER = 'comunicados.entregas.ver';
     case GOBIERNO_VER = 'gobierno.ver';
     case GOBIERNO_DETALLES_VER = 'gobierno.detalles.ver';
+    case GOBIERNO_EXPORTAR = 'gobierno.exportar';
 }

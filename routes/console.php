@@ -9,6 +9,8 @@ use Src\Finanzas\Application\Actions\AutomaticCargosAction;
 use Src\Operaciones\Application\Actions\GeneratePreventiveMaintenanceOrdersAction;
 use Src\Comunicacion\Application\Actions\DispatchDueComunicadoDeliveriesAction;
 use Src\Comunicacion\Application\Actions\CleanupOrphanedComunicadoDocumentsAction;
+use Src\Gobierno\Application\Actions\DespacharExportacionesAuditoriaPendientesAction;
+use Src\Gobierno\Application\Actions\LimpiarExportacionesAuditoriaAction;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -114,4 +116,31 @@ Artisan::command('comunicacion:limpiar-documentos-huerfanos
 Schedule::command('comunicacion:limpiar-documentos-huerfanos --horas=24 --limite=500')
     ->dailyAt('03:10')
     ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::call(static fn (): int => app(DespacharExportacionesAuditoriaPendientesAction::class)->execute())
+    ->name('gobierno:despachar-exportaciones')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->onOneServer();
+
+Artisan::command('gobierno:limpiar-exportaciones
+    {--limite=500 : Máximo de archivos por ejecución}', function (LimpiarExportacionesAuditoriaAction $cleanup): int {
+    $limit = filter_var($this->option('limite'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5000]]);
+    if ($limit === false) {
+        $this->error('Límite debe estar entre 1 y 5000.');
+
+        return 1;
+    }
+    $result = $cleanup->execute($limit);
+    $this->table(['Expiradas', 'Archivos eliminados', 'Errores'], [[
+        $result['expired'], $result['deleted'], $result['errors'],
+    ]]);
+
+    return $result['errors'] === 0 ? 0 : 1;
+})->purpose('Expira exportaciones de auditoría y elimina sus archivos privados.');
+
+Schedule::command('gobierno:limpiar-exportaciones --limite=500')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
     ->onOneServer();
