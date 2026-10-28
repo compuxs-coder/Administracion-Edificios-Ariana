@@ -29,7 +29,7 @@ class RegisterAction
 
         if ($issueToken) {
             $eloquentUser = UserEloquentModel::findOrFail($savedUser->getId());
-            $result['token'] = $eloquentUser->createToken('auth_token')->plainTextToken;
+            $result['token'] = $eloquentUser->createApiToken()->plainTextToken;
         }
 
         return $result;

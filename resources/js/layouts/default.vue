@@ -156,11 +156,6 @@ const links = computed<NavigationMenuItem[][]>(() => [[{
   to: '/gobierno/auditoria',
   onSelect: () => navigateTo('/gobierno/auditoria'),
   hidden: !canAny('gobierno.ver')
-}, {
-  label: 'Clientes',
-  icon: 'i-lucide-users-round',
-  to: '/clientes',
-  onSelect: () => navigateTo('/clientes')
 }].filter(item => !item.hidden).map(({ hidden: _hidden, ...item }) => item)])
 
 const groups = computed(() => [{

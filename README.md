@@ -39,8 +39,7 @@ Sistema multiedificio en desarrollo. Una instalación puede administrar uno o va
 - Centro de Auditoría Unificado de sólo lectura sobre cinco bitácoras nativas, con selección multiedificio autorizada, referencias opacas y minimización de datos sensibles.
 - Exportaciones CSV/PDF asíncronas del Centro de Auditoría, con alcance inmutable, archivos privados verificados, vencimiento y limpieza durable.
 - Dashboard sin métricas simuladas.
-- CRUD web y API de Cliente, conservado temporalmente sólo como módulo heredado.
-- APIs heredadas de Categoria, Producto y Factura, pendientes de retiro o rediseño.
+- Contextos heredados Cliente, Categoria, Producto y Factura conservados sólo para preservar migraciones y datos; sus rutas HTTP están deshabilitadas.
 - Tablas nuevas de Edificios, acceso, Propiedad, Finanzas, Gastos, Tesorería, Operaciones, Áreas comunes y Comunicación dentro del esquema PostgreSQL privado; Gobierno reutiliza sus bitácoras sin duplicarlas y sólo persiste el ciclo operativo de sus exportaciones.
 
 La arquitectura objetivo y las reglas para incorporar módulos están en [`ARCHITECTURE.md`](ARCHITECTURE.md). La referencia técnica del estado actual está en [`DOCUMENTATION.md`](DOCUMENTATION.md).

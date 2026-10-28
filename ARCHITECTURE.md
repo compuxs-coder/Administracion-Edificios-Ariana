@@ -366,6 +366,8 @@ La activación de un contexto requiere:
 
 Auth se conserva como base reutilizable. Cliente, Categoria, Producto y Factura no se usarán como modelo implícito para el nuevo dominio.
 
+Las superficies HTTP de los cuatro contextos heredados están deshabilitadas. Sus migraciones, tablas y datos se conservan hasta aprobar una migración o archivo definitivo.
+
 Un contexto heredado sólo puede retirarse después de comprobar:
 
 - Rutas y consumidores activos.

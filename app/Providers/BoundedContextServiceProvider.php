@@ -107,6 +107,13 @@ class BoundedContextServiceProvider extends ServiceProvider
         'Factura',
     ];
 
+    private const DISABLED_HTTP_CONTEXTS = [
+        'Cliente',
+        'Categoria',
+        'Producto',
+        'Factura',
+    ];
+
     /**
      * Register services.
      */
@@ -171,6 +178,11 @@ class BoundedContextServiceProvider extends ServiceProvider
     protected function loadBoundedContextRoutes(): void
     {
         foreach (self::BOUNDED_CONTEXTS as $context) {
+            // Conserva las migraciones heredadas sin exponer sus superficies HTTP inseguras.
+            if (in_array($context, self::DISABLED_HTTP_CONTEXTS, true)) {
+                continue;
+            }
+
             // Cargar rutas de API
             $apiRoutesPath = base_path("src/{$context}/api.php");
             if (file_exists($apiRoutesPath)) {

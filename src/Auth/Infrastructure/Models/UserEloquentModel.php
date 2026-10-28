@@ -9,10 +9,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\NewAccessToken;
 
 #[UseFactory(UserFactory::class)]
 class UserEloquentModel extends Authenticatable
 {
+    public const API_TOKEN_ABILITIES = ['user:read', 'token:revoke'];
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasUuid;
 
@@ -52,4 +55,14 @@ class UserEloquentModel extends Authenticatable
         ];
     }
 
+    public function createApiToken(): NewAccessToken
+    {
+        $expirationMinutes = max(1, (int) (config('sanctum.expiration') ?? 1440));
+
+        return $this->createToken(
+            'auth_token',
+            self::API_TOKEN_ABILITIES,
+            now()->addMinutes($expirationMinutes),
+        );
+    }
 }

@@ -20,7 +20,6 @@ return [
     'groups' => [
         'web' => [
             'edificios.*',
-            'clientes.*',
             'login',
             'register',
             'logout',

@@ -3,6 +3,7 @@
 namespace Src\Auth\Application\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\PersonalAccessToken;
 use Src\Auth\Application\Actions\RegisterAction;
 use Src\Auth\Application\Actions\LoginAction;
 use Src\Auth\Application\Actions\LogoutAction;
@@ -11,7 +12,6 @@ use Src\Auth\Infrastructure\Requests\RegisterRequest;
 use Src\Auth\Infrastructure\Requests\LoginRequest;
 use Src\Auth\Infrastructure\Resources\UserResource;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Throwable;
 
 class AuthController extends Controller
@@ -43,7 +43,6 @@ class AuthController extends Controller
         try {
             $result = $this->loginAction->execute($request->validated());
         } catch (Throwable $exception) {
-            Auth::guard('web')->logout();
             report($exception);
 
             return response()->json([
@@ -74,7 +73,7 @@ class AuthController extends Controller
     {
         // Delete the current access token
         $token = $request->user()->currentAccessToken();
-        if ($token) {
+        if ($token instanceof PersonalAccessToken) {
             $token->delete();
         }
 

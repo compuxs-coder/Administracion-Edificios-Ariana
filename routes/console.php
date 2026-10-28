@@ -144,3 +144,8 @@ Schedule::command('gobierno:limpiar-exportaciones --limite=500')
     ->everyFiveMinutes()
     ->withoutOverlapping(10)
     ->onOneServer();
+
+Schedule::command('sanctum:prune-expired --hours=24')
+    ->dailyAt('03:40')
+    ->withoutOverlapping()
+    ->onOneServer();

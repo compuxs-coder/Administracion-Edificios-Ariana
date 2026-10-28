@@ -15,9 +15,11 @@ class TechnicalFoundationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_clientes_show_route_is_not_registered_without_a_controller_action(): void
+    public function test_legacy_cliente_routes_are_not_registered(): void
     {
+        $this->assertFalse(Route::has('clientes.index'));
         $this->assertFalse(Route::has('clientes.show'));
+        $this->assertFalse(Route::has('api.clientes.index'));
     }
 
     public function test_user_factory_resolves_the_authentication_model(): void
@@ -125,6 +127,7 @@ class TechnicalFoundationTest extends TestCase
             ->assertJsonPath('data.token_type', 'Bearer');
 
         $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertGuest();
     }
 
     public function test_api_login_returns_a_controlled_error_when_the_repository_fails(): void
@@ -171,7 +174,7 @@ class TechnicalFoundationTest extends TestCase
     public function test_api_logout_revokes_the_current_token(): void
     {
         $user = UserEloquentModel::factory()->create();
-        $plainTextToken = $user->createToken('test-token')->plainTextToken;
+        $plainTextToken = $user->createToken('test-token', ['token:revoke'], now()->addHour())->plainTextToken;
 
         $this->withToken($plainTextToken)
             ->postJson('/api/v1/auth/logout')

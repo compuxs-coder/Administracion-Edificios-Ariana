@@ -260,7 +260,7 @@ api.php              Rutas API opcionales
 web.php              Rutas web opcionales
 ```
 
-`BoundedContextServiceProvider` mantiene una lista explícita de contextos activos. Esta decisión evita cargar accidentalmente rutas o migraciones por la sola existencia de un directorio.
+`BoundedContextServiceProvider` mantiene una lista explícita de contextos conocidos y otra de contextos con HTTP deshabilitado. Esta separación conserva el descubrimiento de migraciones heredadas sin publicar rutas por la sola existencia de un directorio.
 
 ## Rutas
 
@@ -273,7 +273,11 @@ Las rutas API de contexto se publican bajo `/api/v1` y utilizan el middleware `a
 La aplicación conserva dos flujos:
 
 - Web: sesión Laravel, protección CSRF y regeneración de sesión.
-- API: tokens personales de Laravel Sanctum.
+- API: tokens personales de Laravel Sanctum con capacidades `user:read` y `token:revoke`, y caducidad configurable mediante `SANCTUM_EXPIRATION_MINUTES`, 1440 minutos por defecto.
+
+Login aplica cinco intentos por minuto por correo e IP, además de un límite de 30 intentos por minuto por IP. Registro aplica tres solicitudes por minuto y diez por hora por IP. Los límites se comparten entre las superficies web y API.
+
+Si existe un proxy frontal, `TRUSTED_PROXIES` debe contener únicamente sus IP o rangos CIDR separados por comas para que los límites utilicen la IP real. No se debe confiar en direcciones externas al proxy controlado. El scheduler elimina diariamente tokens que llevan al menos 24 horas vencidos.
 
 Auth y `public.users` son infraestructura reutilizable. La autorización administrativa se resuelve mediante membresías, roles y permisos con alcance por edificio. Propietarios, residentes y terceros no son cuentas de usuario ni conceden acceso.
 
@@ -885,16 +889,18 @@ Las rutas usan sesión, CSRF, autorización backend y throttles separados. El ú
 | Contexto | Estado | Decisión pendiente |
 |---|---|---|
 | Auth | Reutilizable | Mantener autenticación y catálogo global de usuarios |
-| Cliente | Web y API heredadas activas | Retirar después de inventariar consumidores; no se usa para Propiedad |
-| Categoria | API activa | Retirar o adaptar cuando se defina el catálogo real |
-| Producto | API activa | Retirar o adaptar cuando se definan servicios y conceptos |
-| Factura | API heredada activa | Sustituir por comprobantes correctamente modelados |
+| Cliente | HTTP deshabilitado; tablas y código conservados | Archivar datos cuando exista una decisión aprobada; no se usa para Propiedad |
+| Categoria | HTTP deshabilitado; tablas y código conservados | Archivar o adaptar cuando se defina el catálogo real |
+| Producto | HTTP deshabilitado; tablas y código conservados | Archivar o adaptar cuando se definan servicios y conceptos |
+| Factura | HTTP deshabilitado; tablas y código conservados | Archivar después de confirmar la sustitución por comprobantes correctamente modelados |
 
-Las páginas Vue de Factura incompatibles con su API y los dashboards de demostración fueron retirados. El backend heredado permanece porque todavía tiene rutas y pruebas funcionales.
+Ningún contexto heredado registra rutas web o API. Sus migraciones continúan cargándose para preservar instalaciones nuevas y existentes, y las pruebas de seguridad verifican que dos usuarios de edificios distintos reciben `404` sin alterar los datos históricos. Las páginas Vue de Cliente permanecen como código inerte y no se muestran en la navegación.
 
 ## Verificaciones
 
 ```bash
+php artisan optimize:clear
+php artisan config:cache
 composer validate
 php artisan about
 php artisan route:list
